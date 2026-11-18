@@ -26,10 +26,14 @@ jobs:
 
       - name: Prepare static site
         run: |
-          mkdir -p site/icons site/lib
-          cp index.html arc.html arc.js iso-v2.js app.js vector.html site/
-          cp -r icons/. site/icons/
-          cp -r lib/. site/lib/
+          mkdir -p site
+          # Copia i file web principali se presenti
+          for f in index.html arc.html arc.js iso-v2.js app.js vector.html; do
+            if [ -f "$f" ]; then cp "$f" site/; fi
+          done
+          # Copia le cartelle opzionali se presenti
+          if [ -d "icons" ]; then cp -r icons site/; fi
+          if [ -d "lib" ]; then cp -r lib site/; fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
