@@ -1,0 +1,1 @@
+Logica corretta: X0/Y0 al centro del profilo sul rifilo sinistro; centro curva calcolato internamente; delta angolare da corde; somma angoli; ultimo foro e rifilo destro sulla tangente finale; rifili radiali o rettilinei; stesse regole di sicurezza del generatore esistente.
