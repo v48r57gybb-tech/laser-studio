@@ -18,6 +18,7 @@ const defaults = {
   clear: 5,
   safe: 200,
   drillTool: 4,
+  drillCycle: 'G83',
   drillMode: 'custom',
   drillCustomDia: 6.8,
   drillCoolant: 'M8',
@@ -57,12 +58,16 @@ function errors(d) {
   const e = {};
   const bad = (k, m) => { if (!e[k]) e[k] = m; };
 
-  for (const k of ['length', 'count', 'pitch', 'left', 'right', 'width', 'height', 'millTool', 'millD', 'diameter', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe', 'drillTool', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']) {
+  for (const k of ['length', 'count', 'pitch', 'left', 'right', 'width', 'height', 'millTool', 'millD', 'diameter', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe', 'drillTool', 'drillS', 'drillF', 'drillZ', 'r', 'initial']) {
     if (!Number.isFinite(Number(d[k]))) bad(k, 'Inserisci un numero valido.');
   }
 
-  for (const k of ['length', 'diameter', 'millS', 'millF', 'step', 'span', 'clear', 'safe', 'drillS', 'drillF', 'q', 'r', 'initial']) {
+  for (const k of ['length', 'diameter', 'millS', 'millF', 'step', 'span', 'clear', 'safe', 'drillS', 'drillF', 'r', 'initial']) {
     if (!(Number(d[k]) > 0)) bad(k, 'Inserisci un valore maggiore di zero.');
+  }
+
+  if (['G83', 'G73'].includes(d.drillCycle)) {
+    if (!Number.isFinite(Number(d.q)) || !(Number(d.q) > 0)) bad('q', 'Incremento Q positivo richiesto per ' + d.drillCycle);
   }
 
   if (d.drillMode === 'custom' && !(Number(d.drillCustomDia) > 0)) bad('drillCustomDia', 'Inserisci un diametro punta valido.');
@@ -164,6 +169,10 @@ function generate(d) {
     ? 'PUNTA D' + d.drillCustomDia
     : (d.drillMode === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
 
+  let cycleBlock = 'G98 ' + d.drillCycle + ' Z' + f(d.drillZ) + ' R' + f(d.r);
+  if (d.drillCycle === 'G83' || d.drillCycle === 'G73') cycleBlock += ' Q' + f(d.q);
+  cycleBlock += ' F' + f(d.drillF);
+
   a.push(
     '',
     'T' + d.drillTool + ' M6 (' + puntaDesc + ')',
@@ -172,7 +181,7 @@ function generate(d) {
     'S' + f(d.drillS) + ' M3',
     'G0 X' + f(xs[0]) + ' Y0.',
     'G0 Z' + f(d.initial),
-    'G98 G83 Z' + f(d.drillZ) + ' R' + f(d.r) + ' Q' + f(d.q) + ' F' + f(d.drillF),
+    cycleBlock,
     ...xs.slice(1).map(x => 'X' + f(x)),
     'G80',
     'G0 Z' + f(d.safe),
@@ -230,7 +239,7 @@ if (typeof document !== 'undefined') {
   const sections = [
     ['1 · Il pezzo', ['length', 'count', 'pitch', 'left', 'right', 'width', 'height']],
     ['2 · Rifili (Fresa)', ['millTool', 'millD', 'diameter', 'comp', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe']],
-    ['3 · Foratura (Punta)', ['drillTool', 'drillMode', 'drillCustomDia', 'drillCoolant', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']],
+    ['3 · Foratura (Punta)', ['drillTool', 'drillCycle', 'drillMode', 'drillCustomDia', 'drillCoolant', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']],
     ['4 · Svasatura (Opzionale)', ['chamfer', 'chamferTool', 'chamferAngle', 'chamferZ', 'chamferS', 'chamferF']],
     ['5 · Maschiatura (Opzionale)', ['tap', 'tapTool', 'thread', 'custom', 'tapPitch', 'tapS', 'tapZ']]
   ];
@@ -255,6 +264,7 @@ if (typeof document !== 'undefined') {
     clear: 'Z tra passate (mm)',
     safe: 'Z sicurezza e cambio utensile (mm)',
     drillTool: 'Utensile punta (Torretta T / Correttore H)',
+    drillCycle: 'Strategia foratura',
     drillMode: 'Tipo punta',
     drillCustomDia: 'Diametro punta personalizzato (mm)',
     drillCoolant: 'Refrigerante',
@@ -279,47 +289,12 @@ if (typeof document !== 'undefined') {
     tapZ: 'Z finale maschiatura passante (mm)'
   };
 
+  // Infopoint essenziali e mirati (rimossi quelli ovvi)
   const tips = {
-    length: 'Lunghezza complessiva finita tra i due piani rifilati.',
-    count: 'Numero intero di fori da eseguire lungo la barra.',
-    pitch: 'Distanza fissa tra i centri di due fori consecutivi.',
-    left: 'Distanza dal piano rifilato sinistro al centro del primo foro.',
-    right: 'Distanza dal centro dell\'ultimo foro al piano rifilato destro.',
-    width: 'Larghezza trasversale della barra.',
-    height: 'Spessore della barra. Z0 è sulla faccia superiore.',
-    millTool: 'Seleziona da 1 a 28 la posizione della torretta (T) e correttore altezza (H).',
-    millD: 'Numero correttore usura raggio D richiamato con G41/G42.',
-    diameter: 'Diametro nominale della fresa per il calcolo del centro utensile.',
     comp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
-    millS: 'Velocità di rotazione del mandrino in fresatura.',
-    millF: 'Avanzamento lineare di taglio della fresa.',
-    step: 'Profondità massima asportata ad ogni passata in Z.',
-    millZ: 'Quota Z di fondo fresatura passante (deve essere inferiore a -spessore).',
-    span: 'Distanza esterna oltre il pezzo per consentire l\'ingresso e l\'uscita libera della fresa.',
-    clear: 'Quota Z intermedia rapida di disimpegno tra una passata e l\'altra.',
-    safe: 'Quota Z assoluta di sicurezza per cambi utensile e ritiri generali.',
-    drillTool: 'Seleziona da 1 a 28 la posizione della punta (T ed H).',
-    drillMode: 'Scegli se inserire a mano il diametro o selezionare una punta a gradino.',
-    drillCustomDia: 'Digita il diametro nominale della punta da foratura in mm.',
-    drillCoolant: 'M8 per getto refrigerante esterno; M18 per adduzione interna ad alta pressione.',
-    drillS: 'Velocità mandrino per la punta di foratura.',
-    drillF: 'Avanzamento per ciclo foratura Fanuc G83.',
-    drillZ: 'Profondità Z passante della punta (deve superare lo spessore).',
-    q: 'Profondità di incremento del ciclo G83 ad ogni affondo.',
-    r: 'Piano di stacco rapido R appena sopra il pezzo per G83.',
-    initial: 'Quota iniziale Z con G98 per scavalcare staffe ed ingombri.',
-    chamfer: 'Spunta per eseguire una svasatura conica sui fori prima della maschiatura.',
-    chamferTool: 'Seleziona da 1 a 28 la posizione dello svasatore (T ed H).',
-    chamferAngle: 'Angolo al vertice dello svasatore (60°, 90°, 100°).',
-    chamferZ: 'Profondità Z negativa di lavoro dello svasatore (es. da -1 a -10 mm).',
-    chamferS: 'Velocità mandrino per la svasatura.',
-    chamferF: 'Avanzamento lineare di discesa dello svasatore con sosta G82.',
-    tap: 'Spunta per eseguire la maschiatura rigida Fanuc M29/G84.',
-    tapTool: 'Seleziona da 1 a 28 la posizione del maschio (T ed H).',
-    thread: 'Filettatura metrica standard o personalizzata.',
-    tapPitch: 'Passo del filetto in mm.',
-    tapS: 'Giri al minuto mandrino durante la maschiatura.',
-    tapZ: 'Quota Z di fondo filetto.'
+    drillCycle: 'G83 scarico profondo fuori pezzo fino a R; G81 foratura continua diretta senza scarichi; G73 rottura truciolo rapida con stacco interno 0.5 mm.',
+    q: 'Profondità ad ogni affondo per G83 e G73.',
+    chamferZ: 'Profondità Z negativa di lavoro svasatore (da -1.0 a -10.0 mm).'
   };
 
   const select = {
@@ -331,6 +306,11 @@ if (typeof document !== 'undefined') {
     tapTool: toolsList,
     diameter: [[8, 'Ø 8 mm'], [10, 'Ø 10 mm'], [12, 'Ø 12 mm']],
     comp: [['off', 'Senza compensazione (centro fresa)'], ['wear', 'Compensazione raggio attiva (G41/G42)']],
+    drillCycle: [
+      ['G83', 'G83 · Scarico truciolo profondo (esce a R)'],
+      ['G81', 'G81 · Foratura diretta continua (senza Q)'],
+      ['G73', 'G73 · Rottura truciolo rapida (stacco 0.5 mm)']
+    ],
     drillMode: [['custom', 'Punta a diametro personalizzato'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
     drillCoolant: [['M8', 'Acqua esterna (M8)'], ['M18', 'Acqua interna attraverso utensile (M18)']],
     chamferAngle: [['60', '60°'], ['90', '90°'], ['100', '100°']],
@@ -421,6 +401,8 @@ if (typeof document !== 'undefined') {
     $('field-millD').hidden = !onComp;
 
     $('field-drillCustomDia').hidden = $('drillMode').value !== 'custom';
+    // Se G81 (foratura diretta), nasconde il campo Q
+    $('field-q').hidden = $('drillCycle').value === 'G81';
 
     const v = read();
     const feed = Number(v.tapS) * Number(v.tapPitch);

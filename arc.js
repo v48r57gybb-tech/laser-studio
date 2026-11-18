@@ -1,4 +1,4 @@
-// Modulo per pezzi curvi ad arco isolato in scope locale con torretta da 1 a 28, punta libera, nuova generazione e archivio
+// Modulo per pezzi curvi ad arco isolato in scope locale con strategie G81/G83/G73, infopoint mirati e archivio
 (function() {
   const arcDefaults = {
     aRadiusMode: 'center',
@@ -27,6 +27,7 @@
     aClear: 5,
     aSafe: 200,
     aDrillTool: 4,
+    aDrillCycle: 'G83',
     aDrillMode: 'custom',
     aDrillCustomDia: 6.8,
     aDrillCoolant: 'M8',
@@ -162,7 +163,7 @@
       'aRadius', 'aOffset', 'aCount', 'aStandardChord', 'aWidth', 'aHeight',
       'aLeftValue', 'aRightValue', 'aEdgeLength', 'aMillTool', 'aMillD', 'aDiameter',
       'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe',
-      'aDrillTool', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial'
+      'aDrillTool', 'aDrillS', 'aDrillF', 'aDrillZ', 'aR', 'aInitial'
     ]) {
       if (!Number.isFinite(Number(String(d[k]).replace(',', '.')))) bad(k, 'Inserisci un numero valido.');
     }
@@ -170,9 +171,13 @@
     for (const k of [
       'aRadius', 'aCount', 'aStandardChord', 'aWidth', 'aHeight',
       'aEdgeLength', 'aDiameter', 'aMillS', 'aMillF', 'aStep',
-      'aClear', 'aSafe', 'aDrillS', 'aDrillF', 'aQ', 'aR', 'aInitial'
+      'aClear', 'aSafe', 'aDrillS', 'aDrillF', 'aR', 'aInitial'
     ]) {
       if (!(Number(d[k]) > 0)) bad(k, 'Inserisci un valore maggiore di zero.');
+    }
+
+    if (['G83', 'G73'].includes(d.aDrillCycle)) {
+      if (!Number.isFinite(Number(d.aQ)) || !(Number(d.aQ) > 0)) bad('aQ', 'Incremento Q positivo richiesto per ' + d.aDrillCycle);
     }
 
     if (d.aDrillMode === 'custom' && !(Number(d.aDrillCustomDia) > 0)) bad('aDrillCustomDia', 'Inserisci un diametro punta valido.');
@@ -304,6 +309,10 @@
       ? 'PUNTA D' + d.aDrillCustomDia
       : (d.aDrillMode === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
 
+    let cycleBlock = 'G98 ' + d.aDrillCycle + ' Z' + f(d.aDrillZ) + ' R' + f(d.aR);
+    if (d.aDrillCycle === 'G83' || d.aDrillCycle === 'G73') cycleBlock += ' Q' + f(d.aQ);
+    cycleBlock += ' F' + f(d.aDrillF);
+
     a.push(
       '',
       'T' + d.aDrillTool + ' M6 (' + puntaDesc + ')',
@@ -312,7 +321,7 @@
       'S' + f(d.aDrillS) + ' M3',
       'G0 X' + f(g.holePoints[0][0]) + ' Y' + f(g.holePoints[0][1]),
       'G0 Z' + f(d.aInitial),
-      'G98 G83 Z' + f(d.aDrillZ) + ' R' + f(d.aR) + ' Q' + f(d.aQ) + ' F' + f(d.aDrillF),
+      cycleBlock,
       ...g.holePoints.slice(1).map(p => 'X' + f(p[0]) + ' Y' + f(p[1])),
       'G80',
       'G0 Z' + f(d.aSafe),
@@ -373,7 +382,7 @@
       ['2 · Fori e corde consecutive', ['aCount', 'aStandardChord']],
       ['3 · Estremità e rifili', ['aWidth', 'aHeight', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aEdgeType', 'aEdgeLength']],
       ['4 · Rifili (Fresa)', ['aMillTool', 'aMillD', 'aDiameter', 'aComp', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe']],
-      ['5 · Foratura (Punta)', ['aDrillTool', 'aDrillMode', 'aDrillCustomDia', 'aDrillCoolant', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial']],
+      ['5 · Foratura (Punta)', ['aDrillTool', 'aDrillCycle', 'aDrillMode', 'aDrillCustomDia', 'aDrillCoolant', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial']],
       ['6 · Svasatura (Opzionale)', ['aChamfer', 'aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']],
       ['7 · Maschiatura (Opzionale)', ['aTap', 'aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']]
     ];
@@ -414,6 +423,7 @@
       aClear: 'Z tra passate (mm)',
       aSafe: 'Z sicurezza e cambio utensile (mm)',
       aDrillTool: 'Utensile punta (Torretta T / Correttore H)',
+      aDrillCycle: 'Strategia foratura',
       aDrillMode: 'Tipo punta',
       aDrillCustomDia: 'Diametro punta personalizzato (mm)',
       aDrillCoolant: 'Refrigerante',
@@ -438,54 +448,13 @@
       aTapZ: 'Z finale maschiatura passante (mm)'
     };
 
+    // Infopoint essenziali e mirati
     const tips = {
       aRadiusMode: 'Quota alla linea dei fori o bordo curvo interno/esterno.',
-      aRadius: 'Raggio di curvatura quotato sul disegno.',
-      aOffset: 'Distanza in mm tra il bordo selezionato e la linea centri dei fori.',
-      aTangent: 'Direzione di partenza del profilo: Y+ (90°) o X+ (0°).',
-      aCurve: 'Verso di curvatura (destra o sinistra).',
-      aCount: 'Numero totale di fori lungo tutto l\'arco.',
-      aStandardChord: 'Corda rettilinea diretta tra centri fori consecutivi.',
-      aWidth: 'Larghezza trasversale della barra.',
-      aHeight: 'Spessore della barra. Z0 è sulla faccia superiore.',
-      aLeftMode: 'Riferimento della distanza rifilo sinistro -> primo foro.',
-      aLeftValue: 'Valore rifilo SX -> foro 1.',
-      aRightMode: 'Riferimento della distanza ultimo foro -> rifilo destro.',
-      aRightValue: 'Valore ultimo foro -> rifilo DX.',
-      aEdgeType: 'Radiale (ortogonale alla curva locale) o rettilineo fisso.',
-      aEdgeLength: 'Corsa di taglio oltre la larghezza del pezzo.',
-      aMillTool: 'Seleziona da 1 a 28 la posizione della fresa (T ed H).',
-      aMillD: 'Numero correttore usura raggio D richiamato con G41/G42.',
-      aDiameter: 'Diametro nominale fresa.',
       aComp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
-      aMillS: 'Giri mandrino fresatura rifili.',
-      aMillF: 'Avanzamento fresatura rifili.',
-      aStep: 'Profondità per passata in Z.',
-      aMillZ: 'Z finale passante oltre lo spessore.',
-      aClear: 'Z intermedia tra passate.',
-      aSafe: 'Z di sicurezza assoluta.',
-      aDrillTool: 'Seleziona da 1 a 28 la posizione della punta (T ed H).',
-      aDrillMode: 'Punta libera a diametro personalizzato o a gradino.',
-      aDrillCustomDia: 'Digita il diametro della punta in mm.',
-      aDrillCoolant: 'M8 per acqua esterna, M18 per adduzione interna attraverso la punta.',
-      aDrillS: 'Giri punta foratura.',
-      aDrillF: 'Avanzamento ciclo G83.',
-      aDrillZ: 'Z finale passante punta.',
-      aQ: 'Incremento Q per foratura a beccheggio.',
-      aR: 'Piano di stacco R.',
-      aInitial: 'Quota iniziale Z con G98 per staffaggi.',
-      aChamfer: 'Spunta per eseguire una svasatura sui fori prima del maschio.',
-      aChamferTool: 'Seleziona da 1 a 28 la posizione dello svasatore (T ed H).',
-      aChamferAngle: 'Angolo svasatore (60°, 90°, 100°).',
-      aChamferZ: 'Quota Z negativa fondo svasatore (-1.0 a -10.0 mm).',
-      aChamferS: 'Giri svasatore.',
-      aChamferF: 'Avanzamento svasatore.',
-      aTap: 'Spunta per maschiatura sincronizzata M29/G84.',
-      aTapTool: 'Seleziona da 1 a 28 la posizione del maschio (T ed H).',
-      aThread: 'Filettatura metrica o speciale.',
-      aTapPitch: 'Passo del maschio in mm.',
-      aTapS: 'Giri maschiatura.',
-      aTapZ: 'Z finale maschiatura.'
+      aDrillCycle: 'G83 scarico profondo fuori pezzo fino a R; G81 foratura continua diretta senza scarichi; G73 rottura truciolo rapida con stacco interno 0.5 mm.',
+      aQ: 'Profondità ad ogni affondo per G83 e G73.',
+      aChamferZ: 'Profondità Z negativa di lavoro svasatore (da -1.0 a -10.0 mm).'
     };
 
     const selects = {
@@ -501,6 +470,11 @@
       aTapTool: toolsList,
       aDiameter: [[8, 'Ø 8 mm'], [10, 'Ø 10 mm'], [12, 'Ø 12 mm']],
       aComp: [['off', 'Senza compensazione (centro fresa)'], ['wear', 'Compensazione raggio attiva (G41/G42)']],
+      aDrillCycle: [
+        ['G83', 'G83 · Scarico truciolo profondo (esce a R)'],
+        ['G81', 'G81 · Foratura diretta continua (senza Q)'],
+        ['G73', 'G73 · Rottura truciolo rapida (stacco 0.5 mm)']
+      ],
       aDrillMode: [['custom', 'Punta a diametro personalizzato'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
       aDrillCoolant: [['M8', 'Acqua esterna (M8)'], ['M18', 'Acqua interna attraverso utensile (M18)']],
       aChamferAngle: [['60', '60°'], ['90', '90°'], ['100', '100°']],
@@ -632,6 +606,9 @@
       $('field-aMillD').hidden = !onComp;
 
       $('field-aDrillCustomDia').hidden = $('aDrillMode').value !== 'custom';
+      // Se G81 (foratura continua), nasconde il campo Q
+      $('field-aQ').hidden = $('aDrillCycle').value === 'G81';
+
       $('field-aOffset').hidden = $('aRadiusMode').value === 'center';
 
       const v = readArc();
