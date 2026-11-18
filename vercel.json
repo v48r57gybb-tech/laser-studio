@@ -1,16 +1,1 @@
-{
-  "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/arc", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
-      ]
-    }
-  ]
-}
+{"buildCommand":"npm run build","installCommand":"npm install","outputDirectory":"dist","rewrites":[{"source":"/","destination":"/index.html"},{"source":"/arc","destination":"/index.html"}],"headers":[{"source":"/(.*)","headers":[{"key":"Cache-Control","value":"no-store, no-cache, must-revalidate"},{"key":"X-Content-Type-Options","value":"nosniff"},{"key":"Referrer-Policy","value":"no-referrer"}]}]}
