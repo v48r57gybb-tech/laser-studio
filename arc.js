@@ -1,19 +1,19 @@
-// Modulo per pezzi curvi ad arco isolato in scope locale con strategie G81/G83/G73, infopoint mirati e archivio
+// Modulo per pezzi curvi ad arco con Card 1 unificata (Il pezzo), Card 2 Rifili, Card 3 Foratura, Card 4 Svasatura, Card 5 Maschiatura, regole corde ripristinate e tasto unico in fondo
 (function() {
   const arcDefaults = {
     aRadiusMode: 'center',
     aRadius: 990,
     aOffset: 0,
-    aTangent: '90',
-    aCurve: 'right',
     aCount: 19,
     aStandardChord: 172.568,
-    aWidth: 23,
-    aHeight: 13.5,
     aLeftMode: 'arc',
     aLeftValue: 64.795,
     aRightMode: 'arc',
     aRightValue: 64.795,
+    aWidth: 23,
+    aHeight: 13.5,
+    aTangent: '90',
+    aCurve: 'right',
     aEdgeType: 'radial',
     aEdgeLength: 40,
     aMillTool: 6,
@@ -377,14 +377,18 @@
     const modeSelect = $('partType');
     if (!modeSelect) return;
 
+    // STRUTTURA ESATTA A 5 CARD COME I PEZZI DRITTI:
+    // Card 1: Il pezzo curvo
+    // Card 2: Rifili
+    // Card 3: Foratura
+    // Card 4: Svasatura (Opzionale)
+    // Card 5: Maschiatura (Opzionale)
     const sections = [
-      ['1 · Riferimenti e geometria arco', ['aRadiusMode', 'aRadius', 'aOffset', 'aTangent', 'aCurve']],
-      ['2 · Fori e corde consecutive', ['aCount', 'aStandardChord']],
-      ['3 · Estremità e rifili', ['aWidth', 'aHeight', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aEdgeType', 'aEdgeLength']],
-      ['4 · Rifili (Fresa)', ['aMillTool', 'aMillD', 'aDiameter', 'aComp', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe']],
-      ['5 · Foratura (Punta)', ['aDrillTool', 'aDrillCycle', 'aDrillMode', 'aDrillCustomDia', 'aDrillCoolant', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial']],
-      ['6 · Svasatura (Opzionale)', ['aChamfer', 'aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']],
-      ['7 · Maschiatura (Opzionale)', ['aTap', 'aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']]
+      ['1 · Il pezzo curvo', ['aRadiusMode', 'aRadius', 'aOffset', 'aCount', 'aStandardChord', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aWidth', 'aHeight', 'aTangent', 'aCurve']],
+      ['2 · Rifili (Fresa)', ['aMillTool', 'aMillD', 'aDiameter', 'aComp', 'aEdgeType', 'aEdgeLength', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe']],
+      ['3 · Foratura (Punta)', ['aDrillTool', 'aDrillCycle', 'aDrillMode', 'aDrillCustomDia', 'aDrillCoolant', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial']],
+      ['4 · Svasatura (Opzionale)', ['aChamfer', 'aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']],
+      ['5 · Maschiatura (Opzionale)', ['aTap', 'aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']]
     ];
 
     const numericKeys = [
@@ -400,16 +404,16 @@
       aRadiusMode: 'Riferimento raggio',
       aRadius: 'Raggio inserito (mm)',
       aOffset: 'Scostamento bordo → fori (mm)',
-      aTangent: 'Tangente iniziale',
-      aCurve: 'Verso di curvatura',
       aCount: 'Numero fori',
       aStandardChord: 'Corda standard coppie (mm)',
-      aWidth: 'Larghezza profilo (mm)',
-      aHeight: 'Spessore profilo (mm)',
       aLeftMode: 'Modalità rifilo SX → foro 1',
       aLeftValue: 'Quota rifilo SX → foro 1 (mm/°)',
       aRightMode: 'Modalità ultimo foro → rifilo DX',
       aRightValue: 'Quota ultimo foro → rifilo DX (mm/°)',
+      aWidth: 'Larghezza profilo (mm)',
+      aHeight: 'Spessore profilo (mm)',
+      aTangent: 'Tangente iniziale',
+      aCurve: 'Verso di curvatura',
       aEdgeType: 'Taglio rifili',
       aEdgeLength: 'Corsa taglio rifilo (mm)',
       aMillTool: 'Utensile fresa (Torretta T / Correttore H)',
@@ -448,7 +452,6 @@
       aTapZ: 'Z finale maschiatura passante (mm)'
     };
 
-    // Infopoint essenziali e mirati
     const tips = {
       aRadiusMode: 'Quota alla linea dei fori o bordo curvo interno/esterno.',
       aComp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
@@ -497,26 +500,29 @@
 
     $('arcFields').innerHTML = sections.map(([title, keys]) =>
       '<section class="card"><h2>' + title + '</h2>' +
-      (title.startsWith('1') ? '<p class="tip"><strong>Zero pezzo G56:</strong> X0 centro larghezza al rifilo sinistro. Y0 riferimento virtuale. Z0 faccia superiore. Il rifilo destro viene calcolato in coordinate assolute dallo stesso zero iniziale.</p>' : '') +
-      '<div class="grid">' + keys.map(makeField).join('') + '</div>' +
-      (title.startsWith('2') ? '<h3>Eccezioni corde consecutive</h3><div id="arcRules"></div><div class="actions"><button type="button" id="addArcRule">Aggiungi eccezione corda</button></div>' : '') +
-      (title.startsWith('3') ? '<div class="notice" id="arcSummary">—</div>' : '') +
-      (title.startsWith('7') ? '<div id="arcFeedbox" class="notice"><label for="arcFeed">Avanzamento maschiatura F automatico (mm/min)</label><output id="arcFeed">—</output></div>' : '') +
+      (title.startsWith('1') ?
+        '<p class="tip"><strong>Zero pezzo G56:</strong> X0 centro larghezza al rifilo sinistro. Y0 riferimento virtuale. Z0 faccia superiore. Il rifilo destro viene calcolato in coordinate assolute dallo stesso zero iniziale.</p>' +
+        '<div class="grid">' + keys.map(makeField).join('') + '</div>' +
+        '<div style="margin-top:18px;">' +
+        '<h3>Eccezioni corde consecutive</h3>' +
+        '<p class="muted">Aggiungi regole solo per le coppie di fori con passo diverso dalla corda standard.</p>' +
+        '<div id="arcRules"></div>' +
+        '<div class="actions"><button type="button" id="addArcRule">Aggiungi eccezione corda</button></div>' +
+        '</div>' +
+        '<div class="notice" id="arcSummary" style="margin-top:15px;">—</div>'
+        :
+        '<div class="grid">' + keys.map(makeField).join('') + '</div>'
+      ) +
+      (title.startsWith('5') ? '<div id="arcFeedbox" class="notice"><label for="arcFeed">Avanzamento maschiatura F automatico (mm/min)</label><output id="arcFeed">—</output></div>' : '') +
       '</section>'
     ).join('');
-
-    // Pulsanti azione: Controlla e Genera + Nuova Generazione Arco
-    const arcActionsEl = document.querySelector('#arcForm .actions');
-    if (arcActionsEl) {
-      arcActionsEl.innerHTML =
-        '<button class="primary" type="submit">Controlla e genera ISO arco</button>' +
-        '<button type="button" id="resetArc" style="background:#e8f0fe;border-color:#2355d8;color:#2355d8;">Nuova generazione (Reset quote)</button>';
-    }
 
     let rules = [];
 
     function renderRules() {
-      $('arcRules').innerHTML = rules.map((r, i) =>
+      const container = $('arcRules');
+      if (!container) return;
+      container.innerHTML = rules.map((r, i) =>
         '<div class="rule"><label>Coppia ' + r.from + ' → ' + (Number(r.from) + 1) + '</label>' +
         '<input data-i="' + i + '" data-k="from" inputmode="numeric" placeholder="Dal foro..." value="' + r.from + '">' +
         '<input data-i="' + i + '" data-k="chord" inputmode="decimal" placeholder="Corda (mm)" value="' + r.chord + '">' +
@@ -562,13 +568,14 @@
 
     for (const k of Object.keys(arcDefaults)) {
       if (['aTap', 'aChamfer'].includes(k)) $(k).checked = current[k] === true;
-      else $(k).value = current[k];
+      else if ($(k)) $(k).value = current[k];
     }
 
     function readArc() {
       const a = {};
       for (const k of Object.keys(arcDefaults)) {
         const el = $(k);
+        if (!el) continue;
         a[k] = ['aTap', 'aChamfer'].includes(k) ? el.checked : numericKeys.includes(k) ? (el.value.trim() === '' ? NaN : Number(el.value.replace(',', '.'))) : el.value;
       }
       a.aRules = rules.map(r => ({ from: Number(r.from), chord: Number(r.chord) }));
@@ -591,37 +598,44 @@
     function syncArc() {
       const onTap = $('aTap').checked;
       const custom = $('aThread').value === 'custom';
-      for (const k of ['aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']) $('field-' + k).hidden = !onTap || (k === 'custom' && !custom);
-      $('arcFeedbox').hidden = !onTap;
-      $('aTapPitch').readOnly = !custom;
-      if (!custom) {
-        const p = arcThreads[$('aThread').value];
-        $('aTapPitch').value = p !== undefined ? p : 1;
+      for (const k of ['aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']) {
+        if ($('field-' + k)) $('field-' + k).hidden = !onTap || (k === 'custom' && !custom);
+      }
+      if ($('arcFeedbox')) $('arcFeedbox').hidden = !onTap;
+      if ($('aTapPitch')) {
+        $('aTapPitch').readOnly = !custom;
+        if (!custom) {
+          const p = arcThreads[$('aThread').value];
+          $('aTapPitch').value = p !== undefined ? p : 1;
+        }
       }
 
       const onChamfer = $('aChamfer').checked;
-      for (const k of ['aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']) $('field-' + k).hidden = !onChamfer;
+      for (const k of ['aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']) {
+        if ($('field-' + k)) $('field-' + k).hidden = !onChamfer;
+      }
 
       const onComp = $('aComp').value === 'wear';
-      $('field-aMillD').hidden = !onComp;
+      if ($('field-aMillD')) $('field-aMillD').hidden = !onComp;
 
-      $('field-aDrillCustomDia').hidden = $('aDrillMode').value !== 'custom';
-      // Se G81 (foratura continua), nasconde il campo Q
-      $('field-aQ').hidden = $('aDrillCycle').value === 'G81';
-
-      $('field-aOffset').hidden = $('aRadiusMode').value === 'center';
+      if ($('field-aDrillCustomDia')) $('field-aDrillCustomDia').hidden = $('aDrillMode').value !== 'custom';
+      if ($('field-aQ')) $('field-aQ').hidden = $('aDrillCycle').value === 'G81';
+      if ($('field-aOffset')) $('field-aOffset').hidden = $('aRadiusMode').value === 'center';
 
       const v = readArc();
       const feed = Number(v.aTapS) * Number(v.aTapPitch);
-      $('arcFeed').textContent = Number.isFinite(feed) && v.aTapS > 0 && v.aTapPitch > 0 ? fmt(feed) + ' mm/min' : '—';
+      if ($('arcFeed')) $('arcFeed').textContent = Number.isFinite(feed) && v.aTapS > 0 && v.aTapPitch > 0 ? fmt(feed) + ' mm/min' : '—';
       renderRules();
     }
 
     function clearArc() {
       for (const k of Object.keys(arcDefaults)) {
         const f = $('field-' + k);
-        f.classList.remove('bad', 'good');
-        $('err-' + k).textContent = '';
+        if (f) {
+          f.classList.remove('bad', 'good');
+          const errEl = $('err-' + k);
+          if (errEl) errEl.textContent = '';
+        }
       }
     }
 
@@ -641,19 +655,22 @@
     $('arcForm').addEventListener('change', invalidateArc);
 
     // Tasto Nuova Generazione (Reset Intelligente Arco)
-    $('resetArc').onclick = () => {
-      for (const k of ['aRadius', 'aCount', 'aStandardChord', 'aLeftValue', 'aRightValue']) {
-        $(k).value = '';
-      }
-      rules = [];
-      renderRules();
-      $('arcOutput').value = '';
-      $('arcCopy').disabled = $('arcDownload').disabled = true;
-      $('arcStatus').className = 'notice';
-      $('arcStatus').textContent = 'Quote arco azzerate. Inserisci raggio, numero fori e corde del nuovo pezzo.';
-      clearArc();
-      $('aRadius').focus();
-    };
+    const resetArcBtn = $('resetArc');
+    if (resetArcBtn) {
+      resetArcBtn.onclick = () => {
+        for (const k of ['aRadius', 'aCount', 'aStandardChord', 'aLeftValue', 'aRightValue']) {
+          if ($(k)) $(k).value = '';
+        }
+        rules = [];
+        renderRules();
+        $('arcOutput').value = '';
+        $('arcCopy').disabled = $('arcDownload').disabled = true;
+        $('arcStatus').className = 'notice';
+        $('arcStatus').textContent = 'Quote arco azzerate. Inserisci raggio, numero fori e corde del nuovo pezzo.';
+        clearArc();
+        if ($('aRadius')) $('aRadius').focus();
+      };
+    }
 
     $('arcForm').addEventListener('submit', e => {
       e.preventDefault();
@@ -668,8 +685,11 @@
 
       if (keys.length) {
         for (const k of keys) {
-          $('field-' + k).classList.add('bad');
-          $('err-' + k).textContent = errs[k];
+          if ($('field-' + k)) {
+            $('field-' + k).classList.add('bad');
+            const errEl = $('err-' + k);
+            if (errEl) errEl.textContent = errs[k];
+          }
         }
         $('arcStatus').className = 'notice error';
         $('arcStatus').textContent = 'Correggi i campi evidenziati prima di generare.';
@@ -679,7 +699,8 @@
       try {
         const r = generateArcISO(v);
         for (const k of Object.keys(arcDefaults)) {
-          if (!$('field-' + k).hidden) $('field-' + k).classList.add('good');
+          const f = $('field-' + k);
+          if (f && !f.hidden) f.classList.add('good');
         }
         $('arcStatus').className = 'notice success';
         $('arcStatus').textContent = 'Dati coerenti · Programma ISO arco generato correttamente.';
@@ -720,21 +741,6 @@
       setTimeout(() => URL.revokeObjectURL(u), 1000);
     };
 
-    function toggleMode() {
-      const isArc = modeSelect.value === 'arc';
-      const straightForm = $('form');
-      const arcForm = $('arcForm');
-      const straightOutput = $('straightOutput');
-      const arcOutputCard = $('arcOutputCard');
-
-      if (straightForm) straightForm.hidden = isArc;
-      if (arcForm) arcForm.hidden = !isArc;
-      if (straightOutput) straightOutput.hidden = isArc;
-      if (arcOutputCard) arcOutputCard.hidden = !isArc;
-    }
-
-    modeSelect.addEventListener('change', toggleMode);
-    toggleMode();
     syncArc();
     clearArc();
   }
