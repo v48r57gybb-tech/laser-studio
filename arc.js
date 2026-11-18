@@ -1,4 +1,4 @@
-// Modulo per pezzi curvi ad arco isolato in scope locale con rifili, foratura, svasatura e maschiatura completi
+// Modulo per pezzi curvi ad arco isolato in scope locale con torretta da 1 a 28, punta libera, nuova generazione e archivio
 (function() {
   const arcDefaults = {
     aRadiusMode: 'center',
@@ -16,8 +16,7 @@
     aRightValue: 64.795,
     aEdgeType: 'radial',
     aEdgeLength: 40,
-    aMillT: 6,
-    aMillH: 6,
+    aMillTool: 6,
     aMillD: 6,
     aDiameter: 10,
     aComp: 'off',
@@ -27,9 +26,9 @@
     aMillZ: -16,
     aClear: 5,
     aSafe: 200,
-    aDrillT: 4,
-    aDrillH: 4,
-    aDrillType: 'tap',
+    aDrillTool: 4,
+    aDrillMode: 'custom',
+    aDrillCustomDia: 6.8,
     aDrillCoolant: 'M8',
     aDrillS: 1850,
     aDrillF: 180,
@@ -38,15 +37,13 @@
     aR: 3,
     aInitial: 50,
     aChamfer: false,
-    aChamferT: 5,
-    aChamferH: 5,
+    aChamferTool: 5,
     aChamferAngle: '90',
     aChamferZ: -2,
     aChamferS: 2000,
     aChamferF: 200,
     aTap: false,
-    aTapT: 7,
-    aTapH: 7,
+    aTapTool: 7,
     aThread: 'M6',
     aCustom: '',
     aTapPitch: 1,
@@ -55,6 +52,7 @@
   };
 
   const arcThreads = { M3: 0.5, M4: 0.7, M5: 0.8, M6: 1, M8: 1.25, M10: 1.5, M12: 1.75, M16: 2 };
+  const toolsList = Array.from({ length: 28 }, (_, i) => [i + 1, 'T' + (i + 1) + ' / H' + (i + 1)]);
 
   const fmt = n => {
     const num = Number(n);
@@ -162,9 +160,9 @@
 
     for (const k of [
       'aRadius', 'aOffset', 'aCount', 'aStandardChord', 'aWidth', 'aHeight',
-      'aLeftValue', 'aRightValue', 'aEdgeLength', 'aMillT', 'aMillH', 'aMillD', 'aDiameter',
+      'aLeftValue', 'aRightValue', 'aEdgeLength', 'aMillTool', 'aMillD', 'aDiameter',
       'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe',
-      'aDrillT', 'aDrillH', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial'
+      'aDrillTool', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial'
     ]) {
       if (!Number.isFinite(Number(String(d[k]).replace(',', '.')))) bad(k, 'Inserisci un numero valido.');
     }
@@ -176,6 +174,8 @@
     ]) {
       if (!(Number(d[k]) > 0)) bad(k, 'Inserisci un valore maggiore di zero.');
     }
+
+    if (d.aDrillMode === 'custom' && !(Number(d.aDrillCustomDia) > 0)) bad('aDrillCustomDia', 'Inserisci un diametro punta valido.');
 
     if (!Number.isInteger(Number(d.aCount)) || Number(d.aCount) < 2 || Number(d.aCount) > 500) bad('aCount', 'Numero intero da 2 a 500.');
     if (d.aRadiusMode !== 'center' && !(Number(d.aOffset) > 0)) bad('aOffset', 'Inserisci lo scostamento positivo.');
@@ -209,7 +209,6 @@
     if (!['off', 'wear'].includes(d.aComp)) bad('aComp', 'Seleziona la compensazione.');
 
     if (d.aChamfer) {
-      if (!Number.isFinite(Number(d.aChamferT)) || !Number.isFinite(Number(d.aChamferH))) bad('aChamferT', 'Numero torretta/altezza non valido.');
       if (!Number.isFinite(Number(d.aChamferZ)) || Number(d.aChamferZ) >= 0 || Number(d.aChamferZ) < -10) bad('aChamferZ', 'Profondità svasatura da -1.0 a -10.0 mm.');
       if (!(Number(d.aChamferS) > 0)) bad('aChamferS', 'Giri maggiori di zero.');
       if (!(Number(d.aChamferF) > 0)) bad('aChamferF', 'Avanzamento maggiore di zero.');
@@ -254,8 +253,8 @@
       'G40 G49 G80',
       'G56',
       '',
-      'T' + d.aMillT + ' M6 (FRESA RIFILI D' + d.aDiameter + ')',
-      'G0 G43 H' + d.aMillH + ' Z' + f(d.aSafe),
+      'T' + d.aMillTool + ' M6 (FRESA RIFILI D' + d.aDiameter + ')',
+      'G0 G43 H' + d.aMillTool + ' Z' + f(d.aSafe),
       'S' + f(d.aMillS) + ' M3'
     ];
 
@@ -301,14 +300,14 @@
     a.push('', 'M9', 'M5');
 
     // FORATURA
-    const puntaDesc = d.aDrillType === 'tap'
-      ? (d.aTap ? 'PREFORO ' + d.aThread : 'PUNTA STANDARD')
-      : (d.aDrillType === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
+    const puntaDesc = d.aDrillMode === 'custom'
+      ? 'PUNTA D' + d.aDrillCustomDia
+      : (d.aDrillMode === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
 
     a.push(
       '',
-      'T' + d.aDrillT + ' M6 (' + puntaDesc + ')',
-      'G0 G43 H' + d.aDrillH + ' Z' + f(d.aSafe),
+      'T' + d.aDrillTool + ' M6 (' + puntaDesc + ')',
+      'G0 G43 H' + d.aDrillTool + ' Z' + f(d.aSafe),
       d.aDrillCoolant + ' (REFRIGERANTE)',
       'S' + f(d.aDrillS) + ' M3',
       'G0 X' + f(g.holePoints[0][0]) + ' Y' + f(g.holePoints[0][1]),
@@ -325,8 +324,8 @@
     if (d.aChamfer) {
       a.push(
         '',
-        'T' + d.aChamferT + ' M6 (SVASATORE ' + d.aChamferAngle + ' GRADI)',
-        'G0 G43 H' + d.aChamferH + ' Z' + f(d.aSafe),
+        'T' + d.aChamferTool + ' M6 (SVASATORE ' + d.aChamferAngle + ' GRADI)',
+        'G0 G43 H' + d.aChamferTool + ' Z' + f(d.aSafe),
         'S' + f(d.aChamferS) + ' M3',
         'G0 X' + f(g.holePoints[0][0]) + ' Y' + f(g.holePoints[0][1]),
         'G0 Z' + f(d.aInitial),
@@ -344,8 +343,8 @@
       const name = d.aThread === 'custom' ? d.aCustom.toUpperCase().replace(/,/g, '.') : d.aThread + 'X' + String(d.aTapPitch);
       a.push(
         '',
-        'T' + d.aTapT + ' M6 (MASCHIO ' + name + ')',
-        'G0 G43 H' + d.aTapH + ' Z' + f(d.aSafe),
+        'T' + d.aTapTool + ' M6 (MASCHIO ' + name + ')',
+        'G0 G43 H' + d.aTapTool + ' Z' + f(d.aSafe),
         'G90 G94',
         'G0 X' + f(g.holePoints[0][0]) + ' Y' + f(g.holePoints[0][1]),
         'G0 Z' + f(d.aInitial),
@@ -373,19 +372,19 @@
       ['1 · Riferimenti e geometria arco', ['aRadiusMode', 'aRadius', 'aOffset', 'aTangent', 'aCurve']],
       ['2 · Fori e corde consecutive', ['aCount', 'aStandardChord']],
       ['3 · Estremità e rifili', ['aWidth', 'aHeight', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aEdgeType', 'aEdgeLength']],
-      ['4 · Rifili (Fresa)', ['aMillT', 'aMillH', 'aMillD', 'aDiameter', 'aComp', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe']],
-      ['5 · Foratura (Punta)', ['aDrillT', 'aDrillH', 'aDrillType', 'aDrillCoolant', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial']],
-      ['6 · Svasatura (Opzionale)', ['aChamfer', 'aChamferT', 'aChamferH', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']],
-      ['7 · Maschiatura (Opzionale)', ['aTap', 'aTapT', 'aTapH', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']]
+      ['4 · Rifili (Fresa)', ['aMillTool', 'aMillD', 'aDiameter', 'aComp', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe']],
+      ['5 · Foratura (Punta)', ['aDrillTool', 'aDrillMode', 'aDrillCustomDia', 'aDrillCoolant', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial']],
+      ['6 · Svasatura (Opzionale)', ['aChamfer', 'aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']],
+      ['7 · Maschiatura (Opzionale)', ['aTap', 'aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']]
     ];
 
     const numericKeys = [
       'aRadius', 'aOffset', 'aCount', 'aStandardChord', 'aWidth', 'aHeight',
-      'aLeftValue', 'aRightValue', 'aEdgeLength', 'aMillT', 'aMillH', 'aMillD', 'aDiameter',
+      'aLeftValue', 'aRightValue', 'aEdgeLength', 'aMillTool', 'aMillD', 'aDiameter',
       'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe',
-      'aDrillT', 'aDrillH', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial',
-      'aChamferT', 'aChamferH', 'aChamferZ', 'aChamferS', 'aChamferF',
-      'aTapT', 'aTapH', 'aTapPitch', 'aTapS'
+      'aDrillTool', 'aDrillCustomDia', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial',
+      'aChamferTool', 'aChamferZ', 'aChamferS', 'aChamferF',
+      'aTapTool', 'aTapPitch', 'aTapS'
     ];
 
     const labels = {
@@ -404,9 +403,8 @@
       aRightValue: 'Quota ultimo foro → rifilo DX (mm/°)',
       aEdgeType: 'Taglio rifili',
       aEdgeLength: 'Corsa taglio rifilo (mm)',
-      aMillT: 'Numero utensile T fresa',
-      aMillH: 'Correttore H fresa',
-      aMillD: 'Correttore D fresa',
+      aMillTool: 'Utensile fresa (Torretta T / Correttore H)',
+      aMillD: 'Correttore raggio D fresa',
       aDiameter: 'Diametro fresa rifili (mm)',
       aComp: 'Compensazione raggio',
       aMillS: 'Giri fresa rifili S (giri/min)',
@@ -415,9 +413,9 @@
       aMillZ: 'Z finale rifili passante (mm)',
       aClear: 'Z tra passate (mm)',
       aSafe: 'Z sicurezza e cambio utensile (mm)',
-      aDrillT: 'Numero utensile T punta',
-      aDrillH: 'Correttore H punta',
-      aDrillType: 'Tipo punta',
+      aDrillTool: 'Utensile punta (Torretta T / Correttore H)',
+      aDrillMode: 'Tipo punta',
+      aDrillCustomDia: 'Diametro punta personalizzato (mm)',
       aDrillCoolant: 'Refrigerante',
       aDrillS: 'Giri punta foratura S (giri/min)',
       aDrillF: 'Avanzamento punta F (mm/min)',
@@ -426,15 +424,13 @@
       aR: 'Piano di stacco R (mm)',
       aInitial: 'Z iniziale ciclo G98 (mm)',
       aChamfer: 'Aggiungi svasatura dopo foratura',
-      aChamferT: 'Numero utensile T svasatore',
-      aChamferH: 'Correttore H svasatore',
+      aChamferTool: 'Utensile svasatore (Torretta T / Correttore H)',
       aChamferAngle: 'Angolo svasatore',
       aChamferZ: 'Profondità Z svasatura (mm)',
       aChamferS: 'Giri svasatore S (giri/min)',
       aChamferF: 'Avanzamento svasatore F (mm/min)',
       aTap: 'Aggiungi maschiatura rigida M29/G84',
-      aTapT: 'Numero utensile T maschio',
-      aTapH: 'Correttore H maschio',
+      aTapTool: 'Utensile maschio (Torretta T / Correttore H)',
       aThread: 'Filetto',
       aCustom: 'Nome filetto personalizzato',
       aTapPitch: 'Passo maschio (mm)',
@@ -447,9 +443,49 @@
       aRadius: 'Raggio di curvatura quotato sul disegno.',
       aOffset: 'Distanza in mm tra il bordo selezionato e la linea centri dei fori.',
       aTangent: 'Direzione di partenza del profilo: Y+ (90°) o X+ (0°).',
+      aCurve: 'Verso di curvatura (destra o sinistra).',
+      aCount: 'Numero totale di fori lungo tutto l\'arco.',
+      aStandardChord: 'Corda rettilinea diretta tra centri fori consecutivi.',
+      aWidth: 'Larghezza trasversale della barra.',
+      aHeight: 'Spessore della barra. Z0 è sulla faccia superiore.',
+      aLeftMode: 'Riferimento della distanza rifilo sinistro -> primo foro.',
+      aLeftValue: 'Valore rifilo SX -> foro 1.',
+      aRightMode: 'Riferimento della distanza ultimo foro -> rifilo destro.',
+      aRightValue: 'Valore ultimo foro -> rifilo DX.',
+      aEdgeType: 'Radiale (ortogonale alla curva locale) o rettilineo fisso.',
+      aEdgeLength: 'Corsa di taglio oltre la larghezza del pezzo.',
+      aMillTool: 'Seleziona da 1 a 28 la posizione della fresa (T ed H).',
+      aMillD: 'Numero correttore usura raggio D richiamato con G41/G42.',
+      aDiameter: 'Diametro nominale fresa.',
       aComp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
-      aDrillCoolant: 'M8 per acqua esterna, M18 per acqua interna ad alta pressione attraverso la punta.',
-      aChamferZ: 'Quota Z negativa di fondo svasatura (da -1.0 a -10.0 mm).'
+      aMillS: 'Giri mandrino fresatura rifili.',
+      aMillF: 'Avanzamento fresatura rifili.',
+      aStep: 'Profondità per passata in Z.',
+      aMillZ: 'Z finale passante oltre lo spessore.',
+      aClear: 'Z intermedia tra passate.',
+      aSafe: 'Z di sicurezza assoluta.',
+      aDrillTool: 'Seleziona da 1 a 28 la posizione della punta (T ed H).',
+      aDrillMode: 'Punta libera a diametro personalizzato o a gradino.',
+      aDrillCustomDia: 'Digita il diametro della punta in mm.',
+      aDrillCoolant: 'M8 per acqua esterna, M18 per adduzione interna attraverso la punta.',
+      aDrillS: 'Giri punta foratura.',
+      aDrillF: 'Avanzamento ciclo G83.',
+      aDrillZ: 'Z finale passante punta.',
+      aQ: 'Incremento Q per foratura a beccheggio.',
+      aR: 'Piano di stacco R.',
+      aInitial: 'Quota iniziale Z con G98 per staffaggi.',
+      aChamfer: 'Spunta per eseguire una svasatura sui fori prima del maschio.',
+      aChamferTool: 'Seleziona da 1 a 28 la posizione dello svasatore (T ed H).',
+      aChamferAngle: 'Angolo svasatore (60°, 90°, 100°).',
+      aChamferZ: 'Quota Z negativa fondo svasatore (-1.0 a -10.0 mm).',
+      aChamferS: 'Giri svasatore.',
+      aChamferF: 'Avanzamento svasatore.',
+      aTap: 'Spunta per maschiatura sincronizzata M29/G84.',
+      aTapTool: 'Seleziona da 1 a 28 la posizione del maschio (T ed H).',
+      aThread: 'Filettatura metrica o speciale.',
+      aTapPitch: 'Passo del maschio in mm.',
+      aTapS: 'Giri maschiatura.',
+      aTapZ: 'Z finale maschiatura.'
     };
 
     const selects = {
@@ -459,12 +495,16 @@
       aLeftMode: [['arc', 'Lungo arco (sviluppo mm)'], ['chord', 'Corda diretta (linea retta mm)'], ['angle', 'Angolo (gradi)']],
       aRightMode: [['arc', 'Lungo arco (sviluppo mm)'], ['chord', 'Corda diretta (linea retta mm)'], ['angle', 'Angolo (gradi)']],
       aEdgeType: [['radial', 'Radiali (ortogonali all’arco)'], ['straight', 'Rettilinei fissi']],
+      aMillTool: toolsList,
+      aDrillTool: toolsList,
+      aChamferTool: toolsList,
+      aTapTool: toolsList,
       aDiameter: [[8, 'Ø 8 mm'], [10, 'Ø 10 mm'], [12, 'Ø 12 mm']],
       aComp: [['off', 'Senza compensazione (centro fresa)'], ['wear', 'Compensazione raggio attiva (G41/G42)']],
-      aDrillType: [['tap', 'Preforo maschiatura automatico'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
+      aDrillMode: [['custom', 'Punta a diametro personalizzato'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
       aDrillCoolant: [['M8', 'Acqua esterna (M8)'], ['M18', 'Acqua interna attraverso utensile (M18)']],
       aChamferAngle: [['60', '60°'], ['90', '90°'], ['100', '100°']],
-      aThread: Object.entries(arcThreads).map(([n, p]) => [n, n + ' × ' + String(p).replace('.', ',')]).concat([['custom', 'Personalizzato']]),
+      aThread: Object.entries(arcThreads).map(([n, p]) => [n, n + ' × ' + String(p).replace('.', ',')]),
       aTapZ: [[-13, 'Z−13 (passante per H10)'], [-16, 'Z−16 (passante consigliato per H13.5)']]
     };
 
@@ -490,6 +530,14 @@
       (title.startsWith('7') ? '<div id="arcFeedbox" class="notice"><label for="arcFeed">Avanzamento maschiatura F automatico (mm/min)</label><output id="arcFeed">—</output></div>' : '') +
       '</section>'
     ).join('');
+
+    // Pulsanti azione: Controlla e Genera + Nuova Generazione Arco
+    const arcActionsEl = document.querySelector('#arcForm .actions');
+    if (arcActionsEl) {
+      arcActionsEl.innerHTML =
+        '<button class="primary" type="submit">Controlla e genera ISO arco</button>' +
+        '<button type="button" id="resetArc" style="background:#e8f0fe;border-color:#2355d8;color:#2355d8;">Nuova generazione (Reset quote)</button>';
+    }
 
     let rules = [];
 
@@ -553,10 +601,23 @@
       return a;
     }
 
+    window.readArcData = readArc;
+    window.loadArcData = function(data) {
+      if (!data) return;
+      rules = data.aRules || [];
+      for (const k of Object.keys(arcDefaults)) {
+        if ($(k)) {
+          if (['aTap', 'aChamfer'].includes(k)) $(k).checked = data[k] === true;
+          else $(k).value = data[k];
+        }
+      }
+      $('arcForm').dispatchEvent(new Event('submit'));
+    };
+
     function syncArc() {
       const onTap = $('aTap').checked;
       const custom = $('aThread').value === 'custom';
-      for (const k of ['aTapT', 'aTapH', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']) $('field-' + k).hidden = !onTap || (k === 'aCustom' && !custom);
+      for (const k of ['aTapTool', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']) $('field-' + k).hidden = !onTap || (k === 'custom' && !custom);
       $('arcFeedbox').hidden = !onTap;
       $('aTapPitch').readOnly = !custom;
       if (!custom) {
@@ -565,11 +626,12 @@
       }
 
       const onChamfer = $('aChamfer').checked;
-      for (const k of ['aChamferT', 'aChamferH', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']) $('field-' + k).hidden = !onChamfer;
+      for (const k of ['aChamferTool', 'aChamferAngle', 'aChamferZ', 'aChamferS', 'aChamferF']) $('field-' + k).hidden = !onChamfer;
 
       const onComp = $('aComp').value === 'wear';
       $('field-aMillD').hidden = !onComp;
 
+      $('field-aDrillCustomDia').hidden = $('aDrillMode').value !== 'custom';
       $('field-aOffset').hidden = $('aRadiusMode').value === 'center';
 
       const v = readArc();
@@ -591,7 +653,7 @@
       $('arcOutput').value = '';
       $('arcCopy').disabled = $('arcDownload').disabled = true;
       $('arcStatus').className = 'notice';
-      $('arcStatus').textContent = 'Dati modificati. Clicca su \"Controlla e genera ISO arco\".';
+      $('arcStatus').textContent = 'Dati modificati. Clicca su "Controlla e genera ISO arco".';
       syncArc();
       try {
         localStorage.setItem('iso-smart-arc', JSON.stringify(readArc()));
@@ -600,6 +662,21 @@
 
     $('arcForm').addEventListener('input', invalidateArc);
     $('arcForm').addEventListener('change', invalidateArc);
+
+    // Tasto Nuova Generazione (Reset Intelligente Arco)
+    $('resetArc').onclick = () => {
+      for (const k of ['aRadius', 'aCount', 'aStandardChord', 'aLeftValue', 'aRightValue']) {
+        $(k).value = '';
+      }
+      rules = [];
+      renderRules();
+      $('arcOutput').value = '';
+      $('arcCopy').disabled = $('arcDownload').disabled = true;
+      $('arcStatus').className = 'notice';
+      $('arcStatus').textContent = 'Quote arco azzerate. Inserisci raggio, numero fori e corde del nuovo pezzo.';
+      clearArc();
+      $('aRadius').focus();
+    };
 
     $('arcForm').addEventListener('submit', e => {
       e.preventDefault();

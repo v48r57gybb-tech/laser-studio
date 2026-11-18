@@ -6,8 +6,7 @@ const defaults = {
   right: 20,
   width: 16.5,
   height: 10,
-  millT: 6,
-  millH: 6,
+  millTool: 6,
   millD: 6,
   diameter: 10,
   comp: 'off',
@@ -18,9 +17,9 @@ const defaults = {
   span: 20,
   clear: 5,
   safe: 200,
-  drillT: 4,
-  drillH: 4,
-  drillType: 'tap',
+  drillTool: 4,
+  drillMode: 'custom',
+  drillCustomDia: 6.8,
   drillCoolant: 'M8',
   drillS: 1850,
   drillF: 180,
@@ -29,15 +28,13 @@ const defaults = {
   r: 3,
   initial: 50,
   chamfer: false,
-  chamferT: 5,
-  chamferH: 5,
+  chamferTool: 5,
   chamferAngle: '90',
   chamferZ: -2,
   chamferS: 2000,
   chamferF: 200,
   tap: false,
-  tapT: 7,
-  tapH: 7,
+  tapTool: 7,
   thread: 'M4',
   custom: '',
   tapPitch: 0.7,
@@ -46,7 +43,6 @@ const defaults = {
 };
 
 const threads = { M3: 0.5, M4: 0.7, M5: 0.8, M6: 1, M8: 1.25, M10: 1.5, M12: 1.75, M16: 2 };
-const tapDrillDiameters = { M3: 2.5, M4: 3.3, M5: 4.2, M6: 5.0, M8: 6.8, M10: 8.5, M12: 10.2, M16: 14.0 };
 
 const fmt = n => {
   const num = Number(n);
@@ -55,17 +51,21 @@ const fmt = n => {
   return String(rounded) + (Number.isInteger(rounded) ? '.' : '');
 };
 
+const toolsList = Array.from({ length: 28 }, (_, i) => [i + 1, 'T' + (i + 1) + ' / H' + (i + 1)]);
+
 function errors(d) {
   const e = {};
   const bad = (k, m) => { if (!e[k]) e[k] = m; };
 
-  for (const k of ['length', 'count', 'pitch', 'left', 'right', 'width', 'height', 'millT', 'millH', 'millD', 'diameter', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe', 'drillT', 'drillH', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']) {
+  for (const k of ['length', 'count', 'pitch', 'left', 'right', 'width', 'height', 'millTool', 'millD', 'diameter', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe', 'drillTool', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']) {
     if (!Number.isFinite(Number(d[k]))) bad(k, 'Inserisci un numero valido.');
   }
 
   for (const k of ['length', 'diameter', 'millS', 'millF', 'step', 'span', 'clear', 'safe', 'drillS', 'drillF', 'q', 'r', 'initial']) {
     if (!(Number(d[k]) > 0)) bad(k, 'Inserisci un valore maggiore di zero.');
   }
+
+  if (d.drillMode === 'custom' && !(Number(d.drillCustomDia) > 0)) bad('drillCustomDia', 'Inserisci un diametro punta valido.');
 
   if (![16.5, 23].includes(Number(d.width))) bad('width', 'Scegli 16,5 o 23 mm.');
   if (![10, 13.5].includes(Number(d.height))) bad('height', 'Scegli 10 o 13,5 mm.');
@@ -92,7 +92,6 @@ function errors(d) {
   if (!['off', 'wear'].includes(d.comp)) bad('comp', 'Seleziona la compensazione.');
 
   if (d.chamfer) {
-    if (!Number.isFinite(Number(d.chamferT)) || !Number.isFinite(Number(d.chamferH))) bad('chamferT', 'Numero torretta/altezza non valido.');
     if (!Number.isFinite(Number(d.chamferZ)) || Number(d.chamferZ) >= 0 || Number(d.chamferZ) < -10) bad('chamferZ', 'Profondità svasatura da -1.0 a -10.0 mm.');
     if (!(Number(d.chamferS) > 0)) bad('chamferS', 'Giri maggiori di zero.');
     if (!(Number(d.chamferF) > 0)) bad('chamferF', 'Avanzamento maggiore di zero.');
@@ -133,8 +132,8 @@ function generate(d) {
     'G40 G49 G80',
     'G56',
     '',
-    'T' + d.millT + ' M6 (FRESA RIFILI D' + d.diameter + ')',
-    'G0 G43 H' + d.millH + ' Z' + f(d.safe),
+    'T' + d.millTool + ' M6 (FRESA RIFILI D' + d.diameter + ')',
+    'G0 G43 H' + d.millTool + ' Z' + f(d.safe),
     'S' + f(d.millS) + ' M3'
   ];
 
@@ -161,14 +160,14 @@ function generate(d) {
   a.push('', 'M9', 'M5');
 
   // FORATURA
-  const puntaDesc = d.drillType === 'tap'
-    ? (d.tap ? 'PREFORO ' + d.thread : 'PUNTA STANDARD')
-    : (d.drillType === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
+  const puntaDesc = d.drillMode === 'custom'
+    ? 'PUNTA D' + d.drillCustomDia
+    : (d.drillMode === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
 
   a.push(
     '',
-    'T' + d.drillT + ' M6 (' + puntaDesc + ')',
-    'G0 G43 H' + d.drillH + ' Z' + f(d.safe),
+    'T' + d.drillTool + ' M6 (' + puntaDesc + ')',
+    'G0 G43 H' + d.drillTool + ' Z' + f(d.safe),
     d.drillCoolant + ' (REFRIGERANTE)',
     'S' + f(d.drillS) + ' M3',
     'G0 X' + f(xs[0]) + ' Y0.',
@@ -185,8 +184,8 @@ function generate(d) {
   if (d.chamfer) {
     a.push(
       '',
-      'T' + d.chamferT + ' M6 (SVASATORE ' + d.chamferAngle + ' GRADI)',
-      'G0 G43 H' + d.chamferH + ' Z' + f(d.safe),
+      'T' + d.chamferTool + ' M6 (SVASATORE ' + d.chamferAngle + ' GRADI)',
+      'G0 G43 H' + d.chamferTool + ' Z' + f(d.safe),
       'S' + f(d.chamferS) + ' M3',
       'G0 X' + f(xs[0]) + ' Y0.',
       'G0 Z' + f(d.initial),
@@ -204,8 +203,8 @@ function generate(d) {
     const name = d.thread === 'custom' ? d.custom.toUpperCase().replace(/,/g, '.') : d.thread + 'X' + String(d.tapPitch);
     a.push(
       '',
-      'T' + d.tapT + ' M6 (MASCHIO ' + name + ')',
-      'G0 G43 H' + d.tapH + ' Z' + f(d.safe),
+      'T' + d.tapTool + ' M6 (MASCHIO ' + name + ')',
+      'G0 G43 H' + d.tapTool + ' Z' + f(d.safe),
       'G90 G94',
       'G0 X' + f(xs[0]) + ' Y0.',
       'G0 Z' + f(d.initial),
@@ -226,14 +225,14 @@ function generate(d) {
 
 if (typeof document !== 'undefined') {
   const $ = id => document.getElementById(id);
-  const numeric = ['length', 'count', 'pitch', 'left', 'right', 'millT', 'millH', 'millD', 'diameter', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe', 'drillT', 'drillH', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial', 'chamferT', 'chamferH', 'chamferZ', 'chamferS', 'chamferF', 'tapT', 'tapH', 'tapPitch', 'tapS'];
+  const numeric = ['length', 'count', 'pitch', 'left', 'right', 'millTool', 'millD', 'diameter', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe', 'drillTool', 'drillCustomDia', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial', 'chamferTool', 'chamferZ', 'chamferS', 'chamferF', 'tapTool', 'tapPitch', 'tapS'];
 
   const sections = [
     ['1 · Il pezzo', ['length', 'count', 'pitch', 'left', 'right', 'width', 'height']],
-    ['2 · Rifili (Fresa)', ['millT', 'millH', 'millD', 'diameter', 'comp', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe']],
-    ['3 · Foratura (Punta)', ['drillT', 'drillH', 'drillType', 'drillCoolant', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']],
-    ['4 · Svasatura (Opzionale)', ['chamfer', 'chamferT', 'chamferH', 'chamferAngle', 'chamferZ', 'chamferS', 'chamferF']],
-    ['5 · Maschiatura (Opzionale)', ['tap', 'tapT', 'tapH', 'thread', 'custom', 'tapPitch', 'tapS', 'tapZ']]
+    ['2 · Rifili (Fresa)', ['millTool', 'millD', 'diameter', 'comp', 'millS', 'millF', 'step', 'millZ', 'span', 'clear', 'safe']],
+    ['3 · Foratura (Punta)', ['drillTool', 'drillMode', 'drillCustomDia', 'drillCoolant', 'drillS', 'drillF', 'drillZ', 'q', 'r', 'initial']],
+    ['4 · Svasatura (Opzionale)', ['chamfer', 'chamferTool', 'chamferAngle', 'chamferZ', 'chamferS', 'chamferF']],
+    ['5 · Maschiatura (Opzionale)', ['tap', 'tapTool', 'thread', 'custom', 'tapPitch', 'tapS', 'tapZ']]
   ];
 
   const labels = {
@@ -244,9 +243,8 @@ if (typeof document !== 'undefined') {
     right: 'Ultimo centro → rifilo DX (mm)',
     width: 'Larghezza profilo (mm)',
     height: 'Spessore profilo (mm)',
-    millT: 'Numero utensile T fresa',
-    millH: 'Correttore H fresa',
-    millD: 'Correttore D fresa',
+    millTool: 'Utensile fresa (Torretta T / Correttore H)',
+    millD: 'Correttore raggio D fresa',
     diameter: 'Diametro fresa (mm)',
     comp: 'Compensazione raggio',
     millS: 'Giri fresa S (giri/min)',
@@ -256,9 +254,9 @@ if (typeof document !== 'undefined') {
     span: 'Corsa fuori pezzo ± Y (mm)',
     clear: 'Z tra passate (mm)',
     safe: 'Z sicurezza e cambio utensile (mm)',
-    drillT: 'Numero utensile T punta',
-    drillH: 'Correttore H punta',
-    drillType: 'Tipo punta',
+    drillTool: 'Utensile punta (Torretta T / Correttore H)',
+    drillMode: 'Tipo punta',
+    drillCustomDia: 'Diametro punta personalizzato (mm)',
     drillCoolant: 'Refrigerante',
     drillS: 'Giri punta S (giri/min)',
     drillF: 'Avanzamento punta F (mm/min)',
@@ -267,15 +265,13 @@ if (typeof document !== 'undefined') {
     r: 'Piano di stacco R (mm)',
     initial: 'Z iniziale ciclo G98 (mm)',
     chamfer: 'Aggiungi svasatura dopo foratura',
-    chamferT: 'Numero utensile T svasatore',
-    chamferH: 'Correttore H svasatore',
+    chamferTool: 'Utensile svasatore (Torretta T / Correttore H)',
     chamferAngle: 'Angolo svasatore',
     chamferZ: 'Profondità Z svasatura (mm)',
     chamferS: 'Giri svasatore S (giri/min)',
     chamferF: 'Avanzamento svasatore F (mm/min)',
     tap: 'Aggiungi maschiatura rigida M29/G84',
-    tapT: 'Numero utensile T maschio',
-    tapH: 'Correttore H maschio',
+    tapTool: 'Utensile maschio (Torretta T / Correttore H)',
     thread: 'Filetto',
     custom: 'Nome filetto personalizzato',
     tapPitch: 'Passo maschio (mm)',
@@ -284,23 +280,58 @@ if (typeof document !== 'undefined') {
   };
 
   const tips = {
-    left: 'Dal piano finito sinistro al centro del primo foro.',
-    right: 'Dal centro dell’ultimo foro al piano finito destro.',
-    pitch: 'Distanza tra i centri di due fori consecutivi.',
-    length: 'Lunghezza finita fra i due piani di rifilatura.',
+    length: 'Lunghezza complessiva finita tra i due piani rifilati.',
+    count: 'Numero intero di fori da eseguire lungo la barra.',
+    pitch: 'Distanza fissa tra i centri di due fori consecutivi.',
+    left: 'Distanza dal piano rifilato sinistro al centro del primo foro.',
+    right: 'Distanza dal centro dell\'ultimo foro al piano rifilato destro.',
+    width: 'Larghezza trasversale della barra.',
+    height: 'Spessore della barra. Z0 è sulla faccia superiore.',
+    millTool: 'Seleziona da 1 a 28 la posizione della torretta (T) e correttore altezza (H).',
+    millD: 'Numero correttore usura raggio D richiamato con G41/G42.',
+    diameter: 'Diametro nominale della fresa per il calcolo del centro utensile.',
     comp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
-    drillCoolant: 'M8 per ugelli esterni, M18 per adduzione interna ad alta pressione attraverso la punta.',
-    chamferZ: 'Quota Z negativa di fondo svasatura (es. da -1.0 a -10.0 mm).',
-    millZ: 'Profondità passante fresa oltre lo spessore.',
-    drillZ: 'Profondità passante punta oltre lo spessore.'
+    millS: 'Velocità di rotazione del mandrino in fresatura.',
+    millF: 'Avanzamento lineare di taglio della fresa.',
+    step: 'Profondità massima asportata ad ogni passata in Z.',
+    millZ: 'Quota Z di fondo fresatura passante (deve essere inferiore a -spessore).',
+    span: 'Distanza esterna oltre il pezzo per consentire l\'ingresso e l\'uscita libera della fresa.',
+    clear: 'Quota Z intermedia rapida di disimpegno tra una passata e l\'altra.',
+    safe: 'Quota Z assoluta di sicurezza per cambi utensile e ritiri generali.',
+    drillTool: 'Seleziona da 1 a 28 la posizione della punta (T ed H).',
+    drillMode: 'Scegli se inserire a mano il diametro o selezionare una punta a gradino.',
+    drillCustomDia: 'Digita il diametro nominale della punta da foratura in mm.',
+    drillCoolant: 'M8 per getto refrigerante esterno; M18 per adduzione interna ad alta pressione.',
+    drillS: 'Velocità mandrino per la punta di foratura.',
+    drillF: 'Avanzamento per ciclo foratura Fanuc G83.',
+    drillZ: 'Profondità Z passante della punta (deve superare lo spessore).',
+    q: 'Profondità di incremento del ciclo G83 ad ogni affondo.',
+    r: 'Piano di stacco rapido R appena sopra il pezzo per G83.',
+    initial: 'Quota iniziale Z con G98 per scavalcare staffe ed ingombri.',
+    chamfer: 'Spunta per eseguire una svasatura conica sui fori prima della maschiatura.',
+    chamferTool: 'Seleziona da 1 a 28 la posizione dello svasatore (T ed H).',
+    chamferAngle: 'Angolo al vertice dello svasatore (60°, 90°, 100°).',
+    chamferZ: 'Profondità Z negativa di lavoro dello svasatore (es. da -1 a -10 mm).',
+    chamferS: 'Velocità mandrino per la svasatura.',
+    chamferF: 'Avanzamento lineare di discesa dello svasatore con sosta G82.',
+    tap: 'Spunta per eseguire la maschiatura rigida Fanuc M29/G84.',
+    tapTool: 'Seleziona da 1 a 28 la posizione del maschio (T ed H).',
+    thread: 'Filettatura metrica standard o personalizzata.',
+    tapPitch: 'Passo del filetto in mm.',
+    tapS: 'Giri al minuto mandrino durante la maschiatura.',
+    tapZ: 'Quota Z di fondo filetto.'
   };
 
   const select = {
     width: [[16.5, '16,5 mm'], [23, '23 mm']],
     height: [[10, '10 mm'], [13.5, '13,5 mm']],
+    millTool: toolsList,
+    drillTool: toolsList,
+    chamferTool: toolsList,
+    tapTool: toolsList,
     diameter: [[8, 'Ø 8 mm'], [10, 'Ø 10 mm'], [12, 'Ø 12 mm']],
-    comp: [['off', 'Senza compensazione (centro fresa)'], ['wear', 'Compensazione raggio attiva (G41/G42)'] ],
-    drillType: [['tap', 'Preforo maschiatura automatico'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
+    comp: [['off', 'Senza compensazione (centro fresa)'], ['wear', 'Compensazione raggio attiva (G41/G42)']],
+    drillMode: [['custom', 'Punta a diametro personalizzato'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
     drillCoolant: [['M8', 'Acqua esterna (M8)'], ['M18', 'Acqua interna attraverso utensile (M18)']],
     chamferAngle: [['60', '60°'], ['90', '90°'], ['100', '100°']],
     thread: [...Object.entries(threads).map(([n, p]) => [n, n + ' × ' + String(p).replace('.', ',')]), ['custom', 'Personalizzato']],
@@ -328,6 +359,31 @@ if (typeof document !== 'undefined') {
     '</section>'
   ).join('');
 
+  // Tasti azione: Controlla e Genera + Nuova Generazione
+  const actionsEl = document.querySelector('#form .actions');
+  if (actionsEl) {
+    actionsEl.innerHTML =
+      '<button class="primary" type="submit">Controlla e genera ISO</button>' +
+      '<button type="button" id="resetStraight" style="background:#e8f0fe;border-color:#2355d8;color:#2355d8;">Nuova generazione (Reset quote)</button>';
+  }
+
+  // Sezione Archivio Programmi
+  const archiveCard = document.createElement('section');
+  archiveCard.className = 'card';
+  archiveCard.id = 'archiveSection';
+  archiveCard.innerHTML =
+    '<h2>Archivio Programmi e Attrezzaggi</h2>' +
+    '<p class="muted">Salva i parametri completi e le note di staffaggio/attrezzaggio per richiamarli istantaneamente.</p>' +
+    '<div class="grid">' +
+    '<div class="field"><label for="progName">Nome Programma / Codice Articolo</label><input id="progName" placeholder="Es. TRAVERSA-1000-M8" autocomplete="off"></div>' +
+    '<div class="field"><label for="progNotes">Note di Attrezzaggio (Morse, staffe, battute)</label><input id="progNotes" placeholder="Es. Morsa 2, battuta SX su perno D10..." autocomplete="off"></div>' +
+    '</div>' +
+    '<div class="actions" style="margin-top:15px;"><button type="button" id="btnSaveArchive" class="primary" style="background:#20804b;">Salva nell\'archivio</button></div>' +
+    '<div id="archiveTableContainer" style="margin-top:20px;overflow-x:auto;"></div>';
+
+  const mainEl = document.querySelector('main');
+  if (mainEl && !$('archiveSection')) mainEl.appendChild(archiveCard);
+
   let d = { ...defaults };
   try {
     const saved = JSON.parse(localStorage.getItem('iso-smart-v2') || 'null');
@@ -353,16 +409,18 @@ if (typeof document !== 'undefined') {
   function sync() {
     const onTap = $('tap').checked;
     const custom = $('thread').value === 'custom';
-    for (const k of ['tapT', 'tapH', 'thread', 'custom', 'tapPitch', 'tapS', 'tapZ']) $('field-' + k).hidden = !onTap || (k === 'custom' && !custom);
+    for (const k of ['tapTool', 'thread', 'custom', 'tapPitch', 'tapS', 'tapZ']) $('field-' + k).hidden = !onTap || (k === 'custom' && !custom);
     $('feedbox').hidden = !onTap;
     $('tapPitch').readOnly = !custom;
     if (!custom) $('tapPitch').value = threads[$('thread').value] ?? '';
 
     const onChamfer = $('chamfer').checked;
-    for (const k of ['chamferT', 'chamferH', 'chamferAngle', 'chamferZ', 'chamferS', 'chamferF']) $('field-' + k).hidden = !onChamfer;
+    for (const k of ['chamferTool', 'chamferAngle', 'chamferZ', 'chamferS', 'chamferF']) $('field-' + k).hidden = !onChamfer;
 
     const onComp = $('comp').value === 'wear';
     $('field-millD').hidden = !onComp;
+
+    $('field-drillCustomDia').hidden = $('drillMode').value !== 'custom';
 
     const v = read();
     const feed = Number(v.tapS) * Number(v.tapPitch);
@@ -397,6 +455,19 @@ if (typeof document !== 'undefined') {
     const t = $('tip-' + b.dataset.tip);
     if (t) t.hidden = !t.hidden;
   });
+
+  // Tasto Nuova Generazione (Reset Intelligente Dritto)
+  $('resetStraight').onclick = () => {
+    for (const k of ['length', 'count', 'pitch', 'left', 'right']) {
+      $(k).value = '';
+    }
+    $('output').value = '';
+    $('copy').disabled = $('download').disabled = true;
+    $('status').className = 'notice';
+    $('status').textContent = 'Quote azzerate. Inserisci lunghezza, fori e interasse del nuovo pezzo.';
+    clear();
+    $('length').focus();
+  };
 
   $('form').addEventListener('submit', e => {
     e.preventDefault();
@@ -442,6 +513,122 @@ if (typeof document !== 'undefined') {
     setTimeout(() => URL.revokeObjectURL(u), 1000);
   };
 
+  // GESTIONE ARCHIVIO PROGRAMMI
+  function getArchive() {
+    try {
+      return JSON.parse(localStorage.getItem('cnc-iso-archive') || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveArchive(list) {
+    try {
+      localStorage.setItem('cnc-iso-archive', JSON.stringify(list));
+    } catch (e) {}
+    renderArchive();
+  }
+
+  function renderArchive() {
+    const list = getArchive();
+    const container = $('archiveTableContainer');
+    if (!container) return;
+
+    if (!list.length) {
+      container.innerHTML = '<p class="muted">Nessun programma salvato in archivio.</p>';
+      return;
+    }
+
+    container.innerHTML =
+      '<table style="width:100%;border-collapse:collapse;font-size:15px;">' +
+      '<thead><tr style="background:#eef4ff;text-align:left;border-bottom:2px solid #18243a;">' +
+      '<th style="padding:10px;">Tipo</th>' +
+      '<th style="padding:10px;">Nome Programma</th>' +
+      '<th style="padding:10px;">Note Attrezzaggio</th>' +
+      '<th style="padding:10px;text-align:right;">Azioni</th>' +
+      '</tr></thead><tbody>' +
+      list.map((item, idx) =>
+        '<tr style="border-bottom:1px solid #ccd6e0;">' +
+        '<td style="padding:10px;"><strong>' + (item.type === 'arc' ? 'Arco' : 'Dritto') + '</strong></td>' +
+        '<td style="padding:10px;">' + item.name + '</td>' +
+        '<td style="padding:10px;color:#42516a;">' + (item.notes || '—') + '</td>' +
+        '<td style="padding:10px;text-align:right;">' +
+        '<button type="button" data-load="' + idx + '" style="padding:6px 12px;font-size:13px;margin-right:6px;">Carica</button>' +
+        '<button type="button" data-delitem="' + idx + '" style="padding:6px 12px;font-size:13px;background:#ffe0e7;color:#ad1632;border-color:#ad1632;">Elimina</button>' +
+        '</td></tr>'
+      ).join('') +
+      '</tbody></table>';
+  }
+
+  $('btnSaveArchive').onclick = () => {
+    const name = $('progName').value.trim();
+    if (!name) {
+      alert('Inserisci un nome o codice per il programma prima di salvare.');
+      $('progName').focus();
+      return;
+    }
+    const notes = $('progNotes').value.trim();
+    const isArc = $('partType').value === 'arc';
+
+    const item = {
+      id: Date.now(),
+      name: name,
+      notes: notes,
+      type: isArc ? 'arc' : 'straight',
+      date: new Date().toLocaleDateString('it-IT'),
+      data: isArc
+        ? (window.readArcData ? window.readArcData() : null)
+        : read()
+    };
+
+    const list = getArchive();
+    list.unshift(item);
+    saveArchive(list);
+    $('progName').value = '';
+    $('progNotes').value = '';
+    alert('Programma "' + name + '" salvato con successo nell\'archivio.');
+  };
+
+  $('archiveSection').addEventListener('click', e => {
+    const loadBtn = e.target.closest('[data-load]');
+    if (loadBtn) {
+      const idx = Number(loadBtn.dataset.load);
+      const list = getArchive();
+      const item = list[idx];
+      if (!item) return;
+
+      if (item.type === 'straight') {
+        $('partType').value = 'straight';
+        $('partType').dispatchEvent(new Event('change'));
+        for (const k of Object.keys(item.data)) {
+          if ($(k)) {
+            if (['tap', 'chamfer'].includes(k)) $(k).checked = item.data[k] === true;
+            else $(k).value = item.data[k];
+          }
+        }
+        $('form').dispatchEvent(new Event('submit'));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (item.type === 'arc' && window.loadArcData) {
+        $('partType').value = 'arc';
+        $('partType').dispatchEvent(new Event('change'));
+        window.loadArcData(item.data);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
+
+    const delBtn = e.target.closest('[data-delitem]');
+    if (delBtn) {
+      const idx = Number(delBtn.dataset.delitem);
+      const list = getArchive();
+      if (confirm('Vuoi davvero eliminare questo programma dall\'archivio?')) {
+        list.splice(idx, 1);
+        saveArchive(list);
+      }
+    }
+  });
+
   sync();
   clear();
+  renderArchive();
 }
