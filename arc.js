@@ -1,4 +1,4 @@
-// Modulo per pezzi curvi ad arco isolato in scope locale per evitare collisioni di variabili globali
+// Modulo per pezzi curvi ad arco con layout chiaro, infopoint (pulsanti i) e calcolo ISO robusto
 (function() {
   const arcDefaults = {
     aRadiusMode: 'center',
@@ -39,11 +39,14 @@
 
   const arcThreads = { M3: 0.5, M4: 0.7, M5: 0.8, M6: 1, M8: 1.25, M10: 1.5, M12: 1.75, M16: 2 };
 
+  // Formattatore numerico sicuro: converte esplicitamente Number() prima di toFixed
   const fmt = n => {
-    const rounded = Number(n.toFixed(4));
+    const num = Number(n);
+    if (!Number.isFinite(num)) return '0.';
+    const rounded = Number(num.toFixed(4));
     return String(rounded) + (Number.isInteger(rounded) ? '.' : '');
   };
-  const rad = d => d * Math.PI / 180;
+  const rad = d => Number(d) * Math.PI / 180;
 
   function holeRadius(d) {
     if (d.aRadiusMode === 'center') return Number(d.aRadius);
@@ -79,7 +82,7 @@
     if (!Number.isFinite(a0) || a0 < 0) return { error: 'Distanza rifilo SX -> foro 1 non valida' };
 
     const holeAngles = [a0];
-    for (let i = 1; i < d.aCount; i++) {
+    for (let i = 1; i < Number(d.aCount); i++) {
       const rule = (d.aRules || []).find(r => Number(r.from) === i);
       const c = rule ? Number(rule.chord) : Number(d.aStandardChord);
       const da = angleFromDistance('chord', c, R);
@@ -87,7 +90,7 @@
       holeAngles.push(holeAngles[i - 1] + da);
     }
 
-    const aLast = holeAngles[d.aCount - 1];
+    const aLast = holeAngles[holeAngles.length - 1];
     const aEndDelta = angleFromDistance(d.aRightMode, d.aRightValue, R);
     if (!Number.isFinite(aEndDelta) || aEndDelta < 0) return { error: 'Distanza ultimo foro -> rifilo DX non valida' };
 
@@ -168,7 +171,7 @@
 
     const R = holeRadius(d);
     if (!(R > 0)) bad('aRadius', 'Il raggio della linea fori deve essere positivo.');
-    if (d.aStandardChord >= 2 * R) bad('aStandardChord', 'La corda deve essere inferiore a 2 × raggio.');
+    if (Number(d.aStandardChord) >= 2 * R) bad('aStandardChord', 'La corda deve essere inferiore a 2 × raggio.');
 
     for (const r of d.aRules || []) {
       if (!(Number(r.chord) > 0 && Number(r.chord) < 2 * R)) bad('aStandardChord', 'Corda eccezione non valida.');
@@ -329,6 +332,13 @@
     const modeSelect = $('partType');
     if (!modeSelect) return;
 
+    const sections = [
+      ['1 · Riferimenti e geometria arco', ['aRadiusMode', 'aRadius', 'aOffset', 'aTangent', 'aCurve']],
+      ['2 · Fori e corde consecutive', ['aCount', 'aStandardChord']],
+      ['3 · Estremità e rifili', ['aWidth', 'aHeight', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aEdgeType', 'aEdgeLength']],
+      ['4 · Parametri utensili e lavorazioni', ['aDiameter', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial', 'aTap', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']]
+    ];
+
     const numericKeys = [
       'aRadius', 'aOffset', 'aCount', 'aStandardChord', 'aWidth', 'aHeight',
       'aLeftValue', 'aRightValue', 'aEdgeLength', 'aDiameter',
@@ -338,40 +348,62 @@
     ];
 
     const labels = {
-      aRadiusMode: 'Raggio inserito',
+      aRadiusMode: 'Riferimento raggio',
       aRadius: 'Raggio inserito (mm)',
-      aOffset: 'Scostamento alla linea fori (mm)',
+      aOffset: 'Scostamento bordo → fori (mm)',
       aTangent: 'Tangente iniziale',
       aCurve: 'Verso di curvatura',
       aCount: 'Numero fori',
-      aStandardChord: 'Corda standard per tutte le coppie (mm)',
+      aStandardChord: 'Corda standard coppie (mm)',
       aWidth: 'Larghezza profilo (mm)',
       aHeight: 'Spessore profilo (mm)',
-      aLeftMode: 'Distanza rifilo SX → foro 1',
-      aLeftValue: 'Valore rifilo SX → foro 1',
-      aRightMode: 'Distanza ultimo foro → rifilo DX',
-      aRightValue: 'Valore ultimo foro → rifilo DX',
-      aEdgeType: 'Tipo rifili',
-      aEdgeLength: 'Lunghezza taglio rifilo (mm)',
+      aLeftMode: 'Modalità rifilo SX → foro 1',
+      aLeftValue: 'Quota rifilo SX → foro 1 (mm/°)',
+      aRightMode: 'Modalità ultimo foro → rifilo DX',
+      aRightValue: 'Quota ultimo foro → rifilo DX (mm/°)',
+      aEdgeType: 'Taglio rifili',
+      aEdgeLength: 'Corsa taglio rifilo (mm)',
       aDiameter: 'Diametro fresa rifili (mm)',
-      aMillS: 'Giri fresa rifili S',
-      aMillF: 'Avanzamento fresa rifili F',
-      aStep: 'Profondità per passata rifili (mm)',
+      aMillS: 'Giri fresa rifili S (giri/min)',
+      aMillF: 'Avanzamento fresa F (mm/min)',
+      aStep: 'Profondità per passata (mm)',
       aMillZ: 'Z finale rifili passante (mm)',
-      aClear: 'Z tra passate rifili (mm)',
+      aClear: 'Z tra passate (mm)',
       aSafe: 'Z sicurezza e cambio utensile (mm)',
-      aDrillS: 'Giri punta foratura S',
-      aDrillF: 'Avanzamento punta F',
+      aDrillS: 'Giri punta foratura S (giri/min)',
+      aDrillF: 'Avanzamento punta F (mm/min)',
       aDrillZ: 'Z finale foratura passante (mm)',
-      aQ: 'Incremento Q foratura (mm)',
-      aR: 'Piano R foratura (mm)',
-      aInitial: 'Z iniziale ciclo foratura (mm)',
-      aTap: 'Aggiungi maschiatura rigida G84',
+      aQ: 'Incremento ciclo Q (mm)',
+      aR: 'Piano di stacco R (mm)',
+      aInitial: 'Z iniziale ciclo G98 (mm)',
+      aTap: 'Aggiungi maschiatura rigida M29/G84',
       aThread: 'Filetto',
       aCustom: 'Nome filetto personalizzato',
       aTapPitch: 'Passo maschio (mm)',
-      aTapS: 'Giri maschio S',
-      aTapZ: 'Z finale maschiatura (mm)'
+      aTapS: 'Giri maschio S (giri/min)',
+      aTapZ: 'Z finale maschiatura passante (mm)'
+    };
+
+    const tips = {
+      aRadiusMode: 'Scegli se la quota del disegno si riferisce alla linea dei fori (mezzeria) o al bordo curvo interno/esterno.',
+      aRadius: 'Raggio di curvatura quotato sul disegno (es. 990 mm).',
+      aOffset: 'Distanza in mm tra il bordo selezionato e la linea dei centri dei fori.',
+      aTangent: 'Direzione di partenza del profilo sul banco macchina: Y+ (90°) se parte verso l\'alto, X+ (0°) se parte orizzontale.',
+      aCurve: 'Verso in cui il profilo si piega avanzando lungo la tangente (destra o sinistra).',
+      aCount: 'Numero totale di fori da eseguire lungo tutto lo sviluppo dell\'arco.',
+      aStandardChord: 'Distanza rettilinea diretta (corda) tra il centro di due fori consecutivi.',
+      aWidth: 'Larghezza trasversale della barra (es. 23 mm o 16.5 mm).',
+      aHeight: 'Spessore della barra (Z0 è sulla faccia superiore; quote lavorazioni devono essere negative).',
+      aLeftMode: 'Come è quotata la distanza dall\'inizio finito del pezzo al centro del primo foro (lungo arco o corda retta).',
+      aLeftValue: 'Valore numerico della distanza rifilo sinistro -> centro primo foro.',
+      aRightMode: 'Come è quotata la distanza dal centro dell\'ultimo foro al piano finale del rifilo destro.',
+      aRightValue: 'Valore numerico della distanza centro ultimo foro -> rifilo destro.',
+      aEdgeType: 'Radiale (ortogonale alla curvatura locale) oppure Rettilineo fisso.',
+      aEdgeLength: 'Corsa della fresa per tagliare completamente l\'estremità del pezzo oltre i bordi.',
+      aDiameter: 'Diametro fresa rifili montata su T6 (es. 10 mm).',
+      aMillZ: 'Profondità passante del rifilo: deve superare lo spessore (es. -16 mm per spessore 13.5 mm).',
+      aDrillZ: 'Profondità passante della punta T4: deve superare lo spessore (es. -18 mm).',
+      aTapZ: 'Quota di fondo maschio T7 passante nel foro.'
     };
 
     const selects = {
@@ -381,23 +413,23 @@
         ['outer', 'Raggio esterno − scostamento']
       ],
       aTangent: [
-        ['0', 'Verso X+'],
-        ['90', 'Verso Y+'],
-        ['180', 'Verso X−'],
-        ['270', 'Verso Y−']
+        ['0', 'Verso X+ (0°)'],
+        ['90', 'Verso Y+ (90°)'],
+        ['180', 'Verso X− (180°)'],
+        ['270', 'Verso Y− (270°)']
       ],
       aCurve: [
         ['left', 'Verso sinistra rispetto alla tangente'],
         ['right', 'Verso destra rispetto alla tangente']
       ],
       aLeftMode: [
-        ['arc', 'Lungo arco (mm)'],
-        ['chord', 'Corda diretta (mm)'],
+        ['arc', 'Lungo arco (sviluppo mm)'],
+        ['chord', 'Corda diretta (linea retta mm)'],
         ['angle', 'Angolo (gradi)']
       ],
       aRightMode: [
-        ['arc', 'Lungo arco (mm)'],
-        ['chord', 'Corda diretta (mm)'],
+        ['arc', 'Lungo arco (sviluppo mm)'],
+        ['chord', 'Corda diretta (linea retta mm)'],
         ['angle', 'Angolo (gradi)']
       ],
       aEdgeType: [
@@ -406,32 +438,33 @@
       ],
       aThread: Object.entries(arcThreads).map(([n, p]) => [n, n + ' × ' + String(p).replace('.', ',')]).concat([['custom', 'Personalizzato']]),
       aTapZ: [
-        [-13, 'Z−13 (passante H13.5)'],
-        [-16, 'Z−16 (passante consigliato)']
+        [-13, 'Z−13 (passante per H10)'],
+        [-16, 'Z−16 (passante consigliato per H13.5)']
       ]
     };
 
     function makeField(k) {
-      return '<div class="field" id="field-' + k + '"><label for="' + k + '">' + labels[k] + '</label>' +
+      return '<div class="field" id="field-' + k + '">' +
+        '<label for="' + k + '">' + labels[k] +
+        (tips[k] ? '<button class="info" type="button" data-arctip="' + k + '" aria-label="Informazioni ' + labels[k] + '">i</button>' : '') +
+        '</label>' +
         (selects[k]
           ? '<select id="' + k + '">' + selects[k].map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('') + '</select>'
           : '<input id="' + k + '" type="' + (k === 'aTap' ? 'checkbox' : 'text') + '" ' + (numericKeys.includes(k) ? 'inputmode="decimal"' : '') + ' autocomplete="off">') +
-        '<span class="err" id="err-' + k + '"></span></div>';
+        (tips[k] ? '<p class="tip" id="arctip-' + k + '" hidden>' + tips[k] + '</p>' : '') +
+        '<span class="err" id="err-' + k + '"></span>' +
+        '</div>';
     }
 
-    $('arcFields').innerHTML =
-      '<section class="card"><h2>1 · Riferimenti e geometria arco</h2><div class="grid">' +
-      ['aRadiusMode', 'aRadius', 'aOffset', 'aTangent', 'aCurve'].map(makeField).join('') +
-      '</div><p class="tip"><strong>Zero G56:</strong> X0 centro larghezza al rifilo sinistro. Y0 riferimento virtuale. Z0 faccia superiore. Il rifilo destro viene calcolato in coordinate assolute dallo stesso zero iniziale (senza ripartire da zero).</p></section>' +
-      '<section class="card"><h2>2 · Fori e corde</h2><div class="grid">' +
-      ['aCount', 'aStandardChord'].map(makeField).join('') +
-      '</div><h3>Eccezioni corde consecutive</h3><div id="arcRules"></div><div class="actions"><button type="button" id="addArcRule">Aggiungi regola corda</button></div></section>' +
-      '<section class="card"><h2>3 · Estremità e rifili</h2><div class="grid">' +
-      ['aWidth', 'aHeight', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aEdgeType', 'aEdgeLength'].map(makeField).join('') +
-      '</div><div class="notice" id="arcSummary">—</div></section>' +
-      '<section class="card"><h2>4 · Lavorazioni e sicurezza</h2><div class="grid">' +
-      ['aDiameter', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe', 'aDrillS', 'aDrillF', 'aDrillZ', 'aQ', 'aR', 'aInitial', 'aTap', 'aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ'].map(makeField).join('') +
-      '</div></section>';
+    $('arcFields').innerHTML = sections.map(([title, keys]) =>
+      '<section class="card"><h2>' + title + '</h2>' +
+      (title.startsWith('1') ? '<p class="tip"><strong>Zero pezzo G56:</strong> X0 centro larghezza al rifilo sinistro. Y0 riferimento virtuale. Z0 faccia superiore. Il rifilo destro viene calcolato in coordinate assolute dallo stesso zero iniziale.</p>' : '') +
+      '<div class="grid">' + keys.map(makeField).join('') + '</div>' +
+      (title.startsWith('2') ? '<h3>Eccezioni corde consecutive</h3><div id="arcRules"></div><div class="actions"><button type="button" id="addArcRule">Aggiungi eccezione corda</button></div>' : '') +
+      (title.startsWith('3') ? '<div class="notice" id="arcSummary">—</div>' : '') +
+      (title.startsWith('4') ? '<div id="arcFeedbox" class="notice"><label for="arcFeed">Avanzamento maschiatura F automatico (mm/min)</label><output id="arcFeed">—</output></div>' : '') +
+      '</section>'
+    ).join('');
 
     let rules = [];
 
@@ -441,7 +474,7 @@
         '<input data-i="' + i + '" data-k="from" inputmode="numeric" placeholder="Dal foro..." value="' + r.from + '">' +
         '<input data-i="' + i + '" data-k="chord" inputmode="decimal" placeholder="Corda (mm)" value="' + r.chord + '">' +
         '<button type="button" data-del="' + i + '">Rimuovi</button></div>'
-      ).join('') || '<p class="muted">Nessuna eccezione: tutte le coppie usano la corda standard.</p>';
+      ).join('') || '<p class="muted">Nessuna eccezione: tutte le coppie consecutive usano la corda standard.</p>';
     }
 
     $('addArcRule').onclick = () => {
@@ -449,16 +482,24 @@
       renderRules();
     };
 
+    $('arcFields').addEventListener('click', e => {
+      const tipBtn = e.target.closest('[data-arctip]');
+      if (tipBtn) {
+        e.preventDefault();
+        const tipEl = $('arctip-' + tipBtn.dataset.arctip);
+        if (tipEl) tipEl.hidden = !tipEl.hidden;
+        return;
+      }
+      const delBtn = e.target.closest('[data-del]');
+      if (delBtn) {
+        rules.splice(Number(delBtn.dataset.del), 1);
+        renderRules();
+      }
+    });
+
     $('arcFields').addEventListener('input', e => {
       const i = Number(e.target.dataset.i), k = e.target.dataset.k;
       if (Number.isInteger(i) && k) rules[i][k] = e.target.value;
-    });
-
-    $('arcFields').addEventListener('click', e => {
-      const b = e.target.closest('[data-del]');
-      if (!b) return;
-      rules.splice(Number(b.dataset.del), 1);
-      renderRules();
     });
 
     let current = { ...arcDefaults };
@@ -493,9 +534,17 @@
       for (const k of ['aThread', 'aCustom', 'aTapPitch', 'aTapS', 'aTapZ']) {
         $('field-' + k).hidden = !on || (k === 'aCustom' && !custom);
       }
+      $('arcFeedbox').hidden = !on;
       $('aTapPitch').readOnly = !custom;
-      if (!custom) $('aTapPitch').value = arcThreads[$('aThread').value] ?? '';
+      if (!custom) {
+        const p = arcThreads[$('aThread').value];
+        $('aTapPitch').value = p !== undefined ? p : 1;
+      }
       $('field-aOffset').hidden = $('aRadiusMode').value === 'center';
+
+      const v = readArc();
+      const feed = Number(v.aTapS) * Number(v.aTapPitch);
+      $('arcFeed').textContent = Number.isFinite(feed) && v.aTapS > 0 && v.aTapPitch > 0 ? fmt(feed) + ' mm/min' : '—';
       renderRules();
     }
 
@@ -551,12 +600,14 @@
         $('arcStatus').className = 'notice success';
         $('arcStatus').textContent = 'Dati coerenti · Programma ISO arco generato correttamente.';
         $('arcSummary').innerHTML =
-          'Raggio linea centri: ' + fmt(r.geometry.R) + ' mm<br>' +
-          'Angolo totale arco: ' + fmt(r.geometry.totalAngle * 180 / Math.PI) + '°<br>' +
-          'Sviluppo linea centri: ' + fmt(r.geometry.development) + ' mm<br>' +
-          'Primo foro: X' + fmt(r.geometry.holePoints[0][0]) + ' Y' + fmt(r.geometry.holePoints[0][1]) + '<br>' +
-          'Ultimo foro: X' + fmt(r.geometry.holePoints[r.geometry.holePoints.length - 1][0]) + ' Y' + fmt(r.geometry.holePoints[r.geometry.holePoints.length - 1][1]) + '<br>' +
-          'Rifilo destro (assoluto da X0 Y0): X' + fmt(r.geometry.pEnd[0]) + ' Y' + fmt(r.geometry.pEnd[1]);
+          '<strong>Riepilogo quote geometriche arco:</strong><br>' +
+          '• Raggio linea centri: <strong>' + fmt(r.geometry.R) + ' mm</strong><br>' +
+          '• Angolo totale arco: <strong>' + fmt(r.geometry.totalAngle * 180 / Math.PI) + '°</strong><br>' +
+          '• Sviluppo linea centri: <strong>' + fmt(r.geometry.development) + ' mm</strong><br>' +
+          '• Centro curva G56: <strong>X' + fmt(r.geometry.center[0]) + ' Y' + fmt(r.geometry.center[1]) + '</strong><br>' +
+          '• Primo foro: <strong>X' + fmt(r.geometry.holePoints[0][0]) + ' Y' + fmt(r.geometry.holePoints[0][1]) + '</strong><br>' +
+          '• Ultimo foro: <strong>X' + fmt(r.geometry.holePoints[r.geometry.holePoints.length - 1][0]) + ' Y' + fmt(r.geometry.holePoints[r.geometry.holePoints.length - 1][1]) + '</strong><br>' +
+          '• Rifilo destro (coordinate assolute da X0 Y0): <strong>X' + fmt(r.geometry.pEnd[0]) + ' Y' + fmt(r.geometry.pEnd[1]) + '</strong>';
 
         $('arcOutput').value = r.iso;
         $('arcCopy').disabled = $('arcDownload').disabled = false;
