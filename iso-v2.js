@@ -162,9 +162,8 @@ function generate(d) {
     }
     a.push('G0 Z' + f(d.safe));
   }
-  a.push('', 'M9', 'M5');
+  a.push('', 'M9', 'M5', 'M1');
 
-  // FORATURA
   const puntaDesc = d.drillMode === 'custom'
     ? 'PUNTA D' + d.drillCustomDia
     : (d.drillMode === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
@@ -186,10 +185,10 @@ function generate(d) {
     'G80',
     'G0 Z' + f(d.safe),
     'M9',
-    'M5'
+    'M5',
+    'M1'
   );
 
-  // SVASATURA
   if (d.chamfer) {
     a.push(
       '',
@@ -203,11 +202,11 @@ function generate(d) {
       'G80',
       'G0 Z' + f(d.safe),
       'M9',
-      'M5'
+      'M5',
+      'M1'
     );
   }
 
-  // MASCHIATURA
   if (d.tap) {
     const name = d.thread === 'custom' ? d.custom.toUpperCase().replace(/,/g, '.') : d.thread + 'X' + String(d.tapPitch);
     a.push(
@@ -224,7 +223,8 @@ function generate(d) {
       'G80',
       'G0 Z' + f(d.safe),
       'M9',
-      'M5'
+      'M5',
+      'M1'
     );
   }
 
@@ -289,12 +289,49 @@ if (typeof document !== 'undefined') {
     tapZ: 'Z finale maschiatura passante (mm)'
   };
 
-  // Infopoint essenziali e mirati (rimossi quelli ovvi)
   const tips = {
-    comp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
-    drillCycle: 'G83 scarico profondo fuori pezzo fino a R; G81 foratura continua diretta senza scarichi; G73 rottura truciolo rapida con stacco interno 0.5 mm.',
-    q: 'Profondità ad ogni affondo per G83 e G73.',
-    chamferZ: 'Profondità Z negativa di lavoro svasatore (da -1.0 a -10.0 mm).'
+    length: 'Lunghezza totale finita del pezzo, misurata tra i due rifili esterni.',
+    count: 'Numero totale dei fori da eseguire lungo il pezzo.',
+    pitch: 'Distanza costante tra il centro di un foro e il successivo.',
+    left: 'Distanza dal rifilo sinistro al centro del primo foro.',
+    right: 'Distanza dal centro dell’ultimo foro al rifilo destro.',
+    width: 'Larghezza del profilo. La scelta aggiorna automaticamente lo spessore: 16,5 = profilo piccolo, 23 = profilo grande.',
+    height: 'Spessore del profilo. Deve corrispondere alla larghezza scelta: 16,5 mm = 10 mm, 23 mm = 13,5 mm.',
+    millTool: 'Numero torretta della fresa. Il correttore D viene sincronizzato automaticamente con questo valore.',
+    millD: 'Numero correttore raggio della fresa. Si allinea automaticamente alla torretta T, ma può essere modificato manualmente.',
+    diameter: 'Diametro della fresa impiegata per eseguire i due rifili.',
+    comp: 'Con compensazione attiva il programma entra in G41/G42 con correttore D ed esce in G40.',
+    millS: 'Rivoluzione della fresa per la lavorazione dei rifili.',
+    millF: 'Avanzamento di lavoro della fresa durante il taglio.',
+    step: 'Profondità rimossa a ogni passata di fresatura.',
+    millZ: 'Quota Z finale della fresatura. Deve essere passante, cioè più negativa dello spessore del profilo.',
+    span: 'Eccedenza Y oltre il bordo del pezzo per entrare e uscire dal taglio.',
+    clear: 'Quota Z di stacco tra le passate di fresatura.',
+    safe: 'Quota Z di sicurezza per i rapidi e il cambio utensile.',
+    drillTool: 'Numero torretta della punta da foratura.',
+    drillCycle: 'G83 scarica il truciolo uscendo fino a R; G73 rompe il truciolo con stacco interno; G81 fora in modo continuo.',
+    drillMode: 'Scegli una punta a diametro libero oppure una punta doppio diametro predefinita.',
+    drillCustomDia: 'Diametro della punta personalizzata, visibile solo con tipo punta personalizzato.',
+    drillCoolant: 'M8 attiva il refrigerante esterno; M18 attiva il refrigerante interno attraverso l’utensile.',
+    drillS: 'Rivoluzione della punta durante la foratura.',
+    drillF: 'Avanzamento della punta durante la foratura.',
+    drillZ: 'Quota Z finale della foratura. Deve essere passante rispetto allo spessore del profilo.',
+    q: 'Profondità di ogni affondo per G83 e G73. Non è utilizzata da G81.',
+    r: 'Piano di stacco R del ciclo di foratura.',
+    initial: 'Quota Z iniziale del ciclo G98, sopra il piano R.',
+    chamfer: 'Attiva la svasatura dei fori dopo la foratura.',
+    chamferTool: 'Numero torretta dell’utensile svasatore.',
+    chamferAngle: 'Angolo di svasatura dell’utensile.',
+    chamferZ: 'Profondità Z di lavoro della svasatura, espressa come valore negativo.',
+    chamferS: 'Rivoluzione dell’utensile svasatore.',
+    chamferF: 'Avanzamento dell’utensile svasatore.',
+    tap: 'Attiva la maschiatura rigida con M29 e ciclo G84.',
+    tapTool: 'Numero torretta del maschio.',
+    thread: 'Filetto da eseguire. Il passo si aggiorna automaticamente salvo filetto personalizzato.',
+    custom: 'Nome del filetto personalizzato, visibile solo scegliendo “Personalizzato”.',
+    tapPitch: 'Passo della maschiatura. Con filetto standard è calcolato automaticamente.',
+    tapS: 'Rivoluzione del maschio. L’avanzamento F è calcolato come S × passo.',
+    tapZ: 'Quota Z finale della maschiatura passante.'
   };
 
   const select = {
@@ -339,7 +376,6 @@ if (typeof document !== 'undefined') {
     '</section>'
   ).join('');
 
-  // Tasti azione: Controlla e Genera + Nuova Generazione
   const actionsEl = document.querySelector('#form .actions');
   if (actionsEl) {
     actionsEl.innerHTML =
@@ -347,7 +383,6 @@ if (typeof document !== 'undefined') {
       '<button type="button" id="resetStraight" style="background:#e8f0fe;border-color:#2355d8;color:#2355d8;">Nuova generazione (Reset quote)</button>';
   }
 
-  // Sezione Archivio Programmi
   const archiveCard = document.createElement('section');
   archiveCard.className = 'card';
   archiveCard.id = 'archiveSection';
@@ -401,7 +436,6 @@ if (typeof document !== 'undefined') {
     $('field-millD').hidden = !onComp;
 
     $('field-drillCustomDia').hidden = $('drillMode').value !== 'custom';
-    // Se G81 (foratura diretta), nasconde il campo Q
     $('field-q').hidden = $('drillCycle').value === 'G81';
 
     const v = read();
@@ -438,7 +472,18 @@ if (typeof document !== 'undefined') {
     if (t) t.hidden = !t.hidden;
   });
 
-  // Tasto Nuova Generazione (Reset Intelligente Dritto)
+  $('millTool').addEventListener('change', () => {
+    $('millD').value = $('millTool').value;
+  });
+
+  $('width').addEventListener('change', () => {
+    $('height').value = Number($('width').value) === 16.5 ? '10' : '13.5';
+  });
+
+  $('height').addEventListener('change', () => {
+    $('width').value = Number($('height').value) === 10 ? '16.5' : '23';
+  });
+
   $('resetStraight').onclick = () => {
     for (const k of ['length', 'count', 'pitch', 'left', 'right']) {
       $(k).value = '';
@@ -495,7 +540,6 @@ if (typeof document !== 'undefined') {
     setTimeout(() => URL.revokeObjectURL(u), 1000);
   };
 
-  // GESTIONE ARCHIVIO PROGRAMMI
   function getArchive() {
     try {
       return JSON.parse(localStorage.getItem('cnc-iso-archive') || '[]');

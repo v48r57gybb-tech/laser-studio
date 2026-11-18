@@ -302,9 +302,8 @@
       }
       a.push('G0 Z' + f(d.aSafe));
     }
-    a.push('', 'M9', 'M5');
+    a.push('', 'M9', 'M5', 'M1');
 
-    // FORATURA
     const puntaDesc = d.aDrillMode === 'custom'
       ? 'PUNTA D' + d.aDrillCustomDia
       : (d.aDrillMode === 'step1' ? 'PUNTA DOPPIO D 5.5/9.5' : 'PUNTA DOPPIO D 6.5/11');
@@ -326,10 +325,10 @@
       'G80',
       'G0 Z' + f(d.aSafe),
       'M9',
-      'M5'
+      'M5',
+      'M1'
     );
 
-    // SVASATURA
     if (d.aChamfer) {
       a.push(
         '',
@@ -343,11 +342,11 @@
         'G80',
         'G0 Z' + f(d.aSafe),
         'M9',
-        'M5'
+        'M5',
+        'M1'
       );
     }
 
-    // MASCHIATURA
     if (d.aTap) {
       const name = d.aThread === 'custom' ? d.aCustom.toUpperCase().replace(/,/g, '.') : d.aThread + 'X' + String(d.aTapPitch);
       a.push(
@@ -364,7 +363,8 @@
         'G80',
         'G0 Z' + f(d.aSafe),
         'M9',
-        'M5'
+        'M5',
+        'M1'
       );
     }
 
@@ -377,12 +377,6 @@
     const modeSelect = $('partType');
     if (!modeSelect) return;
 
-    // STRUTTURA ESATTA A 5 CARD COME I PEZZI DRITTI:
-    // Card 1: Il pezzo curvo
-    // Card 2: Rifili
-    // Card 3: Foratura
-    // Card 4: Svasatura (Opzionale)
-    // Card 5: Maschiatura (Opzionale)
     const sections = [
       ['1 · Il pezzo curvo', ['aRadiusMode', 'aRadius', 'aOffset', 'aCount', 'aStandardChord', 'aLeftMode', 'aLeftValue', 'aRightMode', 'aRightValue', 'aWidth', 'aHeight', 'aTangent', 'aCurve']],
       ['2 · Rifili (Fresa)', ['aMillTool', 'aMillD', 'aDiameter', 'aComp', 'aEdgeType', 'aEdgeLength', 'aMillS', 'aMillF', 'aStep', 'aMillZ', 'aClear', 'aSafe']],
@@ -453,11 +447,55 @@
     };
 
     const tips = {
-      aRadiusMode: 'Quota alla linea dei fori o bordo curvo interno/esterno.',
-      aComp: 'Attiva G41/G42 con correttore D su ingresso e G40 in uscita.',
-      aDrillCycle: 'G83 scarico profondo fuori pezzo fino a R; G81 foratura continua diretta senza scarichi; G73 rottura truciolo rapida con stacco interno 0.5 mm.',
-      aQ: 'Profondità ad ogni affondo per G83 e G73.',
-      aChamferZ: 'Profondità Z negativa di lavoro svasatore (da -1.0 a -10.0 mm).'
+      aRadiusMode: 'Puoi inserire direttamente il raggio della linea dei centri fori oppure indicare il raggio del bordo interno/esterno e lo scostamento.',
+      aRadius: 'Raggio della linea dei centri fori oppure raggio del bordo scelto come riferimento.',
+      aOffset: 'Distanza radiale tra il bordo scelto e la linea dei centri fori.',
+      aCount: 'Numero totale dei fori da posizionare lungo l’arco.',
+      aStandardChord: 'Corda applicata di default tra ogni coppia consecutiva di fori.',
+      aLeftMode: 'Definisce se la quota dal rifilo sinistro al primo foro è uno sviluppo d’arco, una corda oppure un angolo.',
+      aLeftValue: 'Valore della distanza rifilo SX → primo foro, secondo la modalità scelta.',
+      aRightMode: 'Definisce se la quota dall’ultimo foro al rifilo destro è uno sviluppo d’arco, una corda oppure un angolo.',
+      aRightValue: 'Valore della distanza ultimo foro → rifilo DX, secondo la modalità scelta.',
+      aWidth: 'Larghezza del profilo. La scelta aggiorna automaticamente lo spessore: 16,5 = profilo piccolo, 23 = profilo grande.',
+      aHeight: 'Spessore del profilo. Deve corrispondere alla larghezza scelta: 16,5 mm = 10 mm, 23 mm = 13,5 mm.',
+      aTangent: 'Direzione della tangente all’arco nel punto del rifilo sinistro.',
+      aCurve: 'Verso verso cui si sviluppa la curvatura del pezzo rispetto alla tangente iniziale.',
+      aEdgeType: 'I rifili possono essere radiali, cioè ortogonali all’arco, oppure rettilinei con direzione fissa.',
+      aEdgeLength: 'Lunghezza della corsa di fresatura oltre il bordo del profilo.',
+      aMillTool: 'Numero torretta della fresa. Il correttore D viene sincronizzato automaticamente con questo valore.',
+      aMillD: 'Numero correttore raggio della fresa. Si allinea automaticamente alla torretta T, ma può essere modificato manualmente.',
+      aDiameter: 'Diametro della fresa impiegata per eseguire i rifili.',
+      aComp: 'Con compensazione attiva il programma entra in G41/G42 con correttore D ed esce in G40.',
+      aMillS: 'Rivoluzione della fresa per la lavorazione dei rifili.',
+      aMillF: 'Avanzamento di lavoro della fresa durante il taglio.',
+      aStep: 'Profondità rimossa a ogni passata di fresatura.',
+      aMillZ: 'Quota Z finale della fresatura. Deve essere passante, cioè più negativa dello spessore del profilo.',
+      aClear: 'Quota Z di stacco tra le passate di fresatura.',
+      aSafe: 'Quota Z di sicurezza per i rapidi e il cambio utensile.',
+      aDrillTool: 'Numero torretta della punta da foratura.',
+      aDrillCycle: 'G83 scarica il truciolo uscendo fino a R; G73 rompe il truciolo con stacco interno; G81 fora in modo continuo.',
+      aDrillMode: 'Scegli una punta a diametro libero oppure una punta doppio diametro predefinita.',
+      aDrillCustomDia: 'Diametro della punta personalizzata, visibile solo con tipo punta personalizzato.',
+      aDrillCoolant: 'M8 attiva il refrigerante esterno; M18 attiva il refrigerante interno attraverso l’utensile.',
+      aDrillS: 'Rivoluzione della punta durante la foratura.',
+      aDrillF: 'Avanzamento della punta durante la foratura.',
+      aDrillZ: 'Quota Z finale della foratura. Deve essere passante rispetto allo spessore del profilo.',
+      aQ: 'Profondità di ogni affondo per G83 e G73. Non è utilizzata da G81.',
+      aR: 'Piano di stacco R del ciclo di foratura.',
+      aInitial: 'Quota Z iniziale del ciclo G98, sopra il piano R.',
+      aChamfer: 'Attiva la svasatura dei fori dopo la foratura.',
+      aChamferTool: 'Numero torretta dell’utensile svasatore.',
+      aChamferAngle: 'Angolo di svasatura dell’utensile.',
+      aChamferZ: 'Profondità Z di lavoro della svasatura, espressa come valore negativo.',
+      aChamferS: 'Rivoluzione dell’utensile svasatore.',
+      aChamferF: 'Avanzamento dell’utensile svasatore.',
+      aTap: 'Attiva la maschiatura rigida con M29 e ciclo G84.',
+      aTapTool: 'Numero torretta del maschio.',
+      aThread: 'Filetto da eseguire. Il passo si aggiorna automaticamente salvo filetto personalizzato.',
+      aCustom: 'Nome del filetto personalizzato, visibile solo scegliendo “Personalizzato”.',
+      aTapPitch: 'Passo della maschiatura. Con filetto standard è calcolato automaticamente.',
+      aTapS: 'Rivoluzione del maschio. L’avanzamento F è calcolato come S × passo.',
+      aTapZ: 'Quota Z finale della maschiatura passante.'
     };
 
     const selects = {
@@ -481,7 +519,7 @@
       aDrillMode: [['custom', 'Punta a diametro personalizzato'], ['step1', 'Punta doppio Ø 5,5 / 9,5'], ['step2', 'Punta doppio Ø 6,5 / 11']],
       aDrillCoolant: [['M8', 'Acqua esterna (M8)'], ['M18', 'Acqua interna attraverso utensile (M18)']],
       aChamferAngle: [['60', '60°'], ['90', '90°'], ['100', '100°']],
-      aThread: Object.entries(arcThreads).map(([n, p]) => [n, n + ' × ' + String(p).replace('.', ',')]),
+      aThread: [...Object.entries(arcThreads).map(([n, p]) => [n, n + ' × ' + String(p).replace('.', ',')]), ['custom', 'Personalizzato']],
       aTapZ: [[-13, 'Z−13 (passante per H10)'], [-16, 'Z−16 (passante consigliato per H13.5)']]
     };
 
@@ -654,7 +692,18 @@
     $('arcForm').addEventListener('input', invalidateArc);
     $('arcForm').addEventListener('change', invalidateArc);
 
-    // Tasto Nuova Generazione (Reset Intelligente Arco)
+    $('aMillTool').addEventListener('change', () => {
+      $('aMillD').value = $('aMillTool').value;
+    });
+
+    $('aWidth').addEventListener('change', () => {
+      $('aHeight').value = Number($('aWidth').value) === 16.5 ? '10' : '13.5';
+    });
+
+    $('aHeight').addEventListener('change', () => {
+      $('aWidth').value = Number($('aHeight').value) === 10 ? '16.5' : '23';
+    });
+
     const resetArcBtn = $('resetArc');
     if (resetArcBtn) {
       resetArcBtn.onclick = () => {
@@ -672,60 +721,52 @@
       };
     }
 
+    function updateArcSummary(g) {
+      const box = $('arcSummary');
+      if (!box || !g) return;
+      box.innerHTML =
+        '<strong>Raggio linea centri:</strong> ' + fmt(g.R) + ' mm<br>' +
+        '<strong>Angolo totale:</strong> ' + fmt(g.totalAngle * 180 / Math.PI) + '°<br>' +
+        '<strong>Sviluppo:</strong> ' + fmt(g.development) + ' mm<br>' +
+        '<strong>Rifilo DX:</strong> X' + fmt(g.pEnd[0]) + ' Y' + fmt(g.pEnd[1]);
+    }
+
     $('arcForm').addEventListener('submit', e => {
       e.preventDefault();
       clearArc();
       syncArc();
       $('arcOutput').value = '';
       $('arcCopy').disabled = $('arcDownload').disabled = true;
-
       const v = readArc();
       const errs = validate(v);
       const keys = Object.keys(errs);
-
       if (keys.length) {
         for (const k of keys) {
-          if ($('field-' + k)) {
-            $('field-' + k).classList.add('bad');
-            const errEl = $('err-' + k);
-            if (errEl) errEl.textContent = errs[k];
-          }
+          const f = $('field-' + k);
+          if (f) f.classList.add('bad');
+          const errEl = $('err-' + k);
+          if (errEl) errEl.textContent = errs[k];
         }
         $('arcStatus').className = 'notice error';
         $('arcStatus').textContent = 'Correggi i campi evidenziati prima di generare.';
         return;
       }
-
-      try {
-        const r = generateArcISO(v);
-        for (const k of Object.keys(arcDefaults)) {
-          const f = $('field-' + k);
-          if (f && !f.hidden) f.classList.add('good');
-        }
-        $('arcStatus').className = 'notice success';
-        $('arcStatus').textContent = 'Dati coerenti · Programma ISO arco generato correttamente.';
-        $('arcSummary').innerHTML =
-          '<strong>Riepilogo quote geometriche arco:</strong><br>' +
-          '• Raggio linea centri: <strong>' + fmt(r.geometry.R) + ' mm</strong><br>' +
-          '• Angolo totale arco: <strong>' + fmt(r.geometry.totalAngle * 180 / Math.PI) + '°</strong><br>' +
-          '• Sviluppo linea centri: <strong>' + fmt(r.geometry.development) + ' mm</strong><br>' +
-          '• Centro curva G56: <strong>X' + fmt(r.geometry.center[0]) + ' Y' + fmt(r.geometry.center[1]) + '</strong><br>' +
-          '• Primo foro: <strong>X' + fmt(r.geometry.holePoints[0][0]) + ' Y' + fmt(r.geometry.holePoints[0][1]) + '</strong><br>' +
-          '• Ultimo foro: <strong>X' + fmt(r.geometry.holePoints[r.geometry.holePoints.length - 1][0]) + ' Y' + fmt(r.geometry.holePoints[r.geometry.holePoints.length - 1][1]) + '</strong><br>' +
-          '• Rifilo destro (coordinate assolute da X0 Y0): <strong>X' + fmt(r.geometry.pEnd[0]) + ' Y' + fmt(r.geometry.pEnd[1]) + '</strong>';
-
-        $('arcOutput').value = r.iso;
-        $('arcCopy').disabled = $('arcDownload').disabled = false;
-      } catch (err) {
-        $('arcStatus').className = 'notice error';
-        $('arcStatus').textContent = err.message;
+      for (const k of Object.keys(arcDefaults)) {
+        const f = $('field-' + k);
+        if (f && !f.hidden) f.classList.add('good');
       }
+      const result = generateArcISO(v);
+      $('arcOutput').value = result.iso;
+      updateArcSummary(result.geometry);
+      $('arcStatus').className = 'notice success';
+      $('arcStatus').textContent = 'Dati coerenti · Programma ISO arco generato.';
+      $('arcCopy').disabled = $('arcDownload').disabled = false;
     });
 
     $('arcCopy').onclick = async () => {
       try {
         await navigator.clipboard.writeText($('arcOutput').value);
-        $('arcStatus').textContent = 'Programma ISO arco copiato negli appunti.';
+        $('arcStatus').textContent = 'Programma copiato negli appunti.';
       } catch (err) {
         $('arcOutput').focus();
         $('arcOutput').select();
@@ -736,7 +777,7 @@
       const u = URL.createObjectURL(new Blob([$('arcOutput').value], { type: 'text/plain' }));
       const a = document.createElement('a');
       a.href = u;
-      a.download = 'programma-arco-iso.txt';
+      a.download = 'programma-iso-arco.txt';
       a.click();
       setTimeout(() => URL.revokeObjectURL(u), 1000);
     };
