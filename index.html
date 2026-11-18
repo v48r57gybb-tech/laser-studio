@@ -108,6 +108,29 @@
     </details>
   </main>
 
+  <script>
+    // Controller globale per lo scambio immediato tra Pezzo Dritto e Pezzo Arco
+    document.addEventListener('DOMContentLoaded', function() {
+      const modeSelect = document.getElementById('partType');
+      if (!modeSelect) return;
+
+      function updateMode() {
+        const isArc = modeSelect.value === 'arc';
+        const straightForm = document.getElementById('form');
+        const arcForm = document.getElementById('arcForm');
+        const straightOutput = document.getElementById('straightOutput');
+        const arcOutputCard = document.getElementById('arcOutputCard');
+
+        if (straightForm) straightForm.hidden = isArc;
+        if (arcForm) arcForm.hidden = !isArc;
+        if (straightOutput) straightOutput.hidden = isArc;
+        if (arcOutputCard) arcOutputCard.hidden = !isArc;
+      }
+
+      modeSelect.addEventListener('change', updateMode);
+      updateMode();
+    });
+  </script>
   <script src="iso-v2.js"></script>
   <script src="arc.js"></script>
 </body>
