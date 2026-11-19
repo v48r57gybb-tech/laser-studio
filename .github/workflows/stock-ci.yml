@@ -1,0 +1,29 @@
+name: Stock CI
+
+on:
+  push:
+    branches:
+      - feature/lavorazione-da-grezzo
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Run unit tests
+        run: node --test tests/
+      - name: Run generation test
+        run: npm run test:generation
+      - name: Build
+        run: npm run build
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
