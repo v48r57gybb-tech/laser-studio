@@ -27,6 +27,7 @@ function init(){
  const toolsList = Array.from({ length: 28 }, (_, i) => [i + 1, 'T' + (i + 1) + ' / H' + (i + 1)]);
 
  const probeTips = {
+  Profile: 'Seleziona se eseguire la tastatura per il profilo grande (23×13,5 mm), per il profilo piccolo (16,5×10 mm) oppure sincronizzarla in automatico con la selezione del pezzo.',
   Tool: 'Numero di stazione della torretta e correttore lunghezza H associato per la sonda Renishaw (predefinito T28 / H28).',
   Safe: 'Quota Z di sicurezza e svincolo rapido (G65 P9810) durante gli spostamenti sopra il pezzo e prima di spegnere la sonda.',
   TopX: 'Coordinata X sul grezzo dove la sfera della sonda scende per rilevare la superficie superiore del pezzo.',
@@ -45,17 +46,25 @@ function init(){
   card.className='card';
   card.id=c.prefix+'ProbeCard';
 
-  function makeProbeField(k, label, isSelect, defaultValue){
+  function makeProbeField(k, label, content){
    return '<div class="field" id="field-'+c.prefix+k+'">' +
      '<label for="'+c.prefix+k+'">'+label+
      '<button class="info" type="button" data-probetip="'+c.prefix+k+'" aria-label="Informazioni '+label+'">i</button>' +
      '</label>' +
-     (isSelect
-       ? '<select id="'+c.prefix+k+'">' + toolsList.map(([v, t]) => '<option value="'+v+'"'+(v===28?' selected':'')+'>'+t+'</option>').join('') + '</select>'
-       : '<input id="'+c.prefix+k+'" inputmode="decimal" value="'+defaultValue+'" autocomplete="off">') +
+     content +
      '<p class="tip" id="probetip-'+c.prefix+k+'" hidden>'+probeTips[k]+'</p>' +
      '</div>';
   }
+
+  const profileSelectHtml = '<select id="'+c.prefix+'Profile">' +
+    '<option value="auto" selected>Automatico (sincronizzato con il pezzo)</option>' +
+    '<option value="big">Profilo grande (Larghezza 23 mm · Spessore 13,5 mm)</option>' +
+    '<option value="small">Profilo piccolo (Larghezza 16,5 mm · Spessore 10 mm)</option>' +
+    '</select>';
+
+  const toolSelectHtml = '<select id="'+c.prefix+'Tool">' +
+    toolsList.map(([v, t]) => '<option value="'+v+'"'+(v===28?' selected':'')+'>'+t+'</option>').join('') +
+    '</select>';
 
   card.innerHTML='<h2>'+c.title+'</h2>'+
    '<div class="field">'+
@@ -63,13 +72,14 @@ function init(){
    '</div>'+
    '<div id="'+c.prefix+'Body" hidden>'+
      '<div class="grid">'+
-       makeProbeField('Tool', 'Sonda (Torretta T / Correttore H)', true, '28') +
-       makeProbeField('Safe', 'Z sicurezza svincolo (mm)', false, '100') +
-       makeProbeField('TopX', 'Punto Z · Quota X (mm)', false, '0') +
-       makeProbeField('TopY', 'Punto Z · Quota Y (mm)', false, '10') +
-       makeProbeField('Approach', 'Quota avvicinamento esterno (mm)', false, '25') +
-       makeProbeField('Inner', 'Punto interno di misura (mm)', false, '10') +
-       makeProbeField('Depth', 'Profondità misura laterale Z (mm)', false, '-4') +
+       makeProbeField('Profile', 'Profilo di riferimento tastatura', profileSelectHtml) +
+       makeProbeField('Tool', 'Sonda (Torretta T / Correttore H)', toolSelectHtml) +
+       makeProbeField('Safe', 'Z sicurezza svincolo (mm)', '<input id="'+c.prefix+'Safe" inputmode="decimal" value="100" autocomplete="off">') +
+       makeProbeField('TopX', 'Punto Z · Quota X (mm)', '<input id="'+c.prefix+'TopX" inputmode="decimal" value="0" autocomplete="off">') +
+       makeProbeField('TopY', 'Punto Z · Quota Y (mm)', '<input id="'+c.prefix+'TopY" inputmode="decimal" value="10" autocomplete="off">') +
+       makeProbeField('Approach', 'Quota avvicinamento esterno (mm)', '<input id="'+c.prefix+'Approach" inputmode="decimal" value="25" autocomplete="off">') +
+       makeProbeField('Inner', 'Punto interno di misura (mm)', '<input id="'+c.prefix+'Inner" inputmode="decimal" value="10" autocomplete="off">') +
+       makeProbeField('Depth', 'Profondità misura laterale Z (mm)', '<input id="'+c.prefix+'Depth" inputmode="decimal" value="-4" autocomplete="off">') +
      '</div>'+
      '<p class="tip">'+c.tip+'</p>'+
    '</div>';
@@ -104,6 +114,7 @@ function init(){
   const chk=$('Enabled');
   return {
    enabled:chk?chk.checked:false,
+   profile:$('Profile')?$('Profile').value:'auto',
    tool:n('Tool'),
    safe:n('Safe'),
    topX:n('TopX'),
@@ -125,6 +136,7 @@ function init(){
    '(TASTATURA INIZIALE RENISHAW - PEZZO DRITTO)',
    '(ORIGINE PROVVISORIA G56 GIA IMPOSTATA)',
    '(SONDA T'+fmt(d.tool)+' / H'+fmt(d.tool)+' - SFERA D6)',
+   '(PROFILO LARGHEZZA NOMINALE '+fmt(width)+' MM)',
    '(----------------------------------------)',
    'G21 G17 G90 G94 G40 G80',
    'G56',
@@ -165,6 +177,7 @@ function init(){
    '(TASTATURA INIZIALE RENISHAW - PEZZO AD ARCO)',
    '(ORIGINE PROVVISORIA G56 GIA IMPOSTATA)',
    '(SONDA T'+fmt(d.tool)+' / H'+fmt(d.tool)+' - SFERA D6)',
+   '(PROFILO LARGHEZZA NOMINALE '+fmt(width)+' MM)',
    '(----------------------------------------)',
    'G21 G17 G90 G94 G40 G80',
    'G56',
@@ -211,12 +224,17 @@ function init(){
    const d=read(c);
    if(!d.enabled)return;
 
-   const widthEl=document.getElementById(c.widthId);
-   const width=Number(String(widthEl?widthEl.value:'').replace(',','.'));
+   let width=23;
+   if(d.profile==='big') width=23;
+   else if(d.profile==='small') width=16.5;
+   else{
+    const widthEl=document.getElementById(c.widthId);
+    width=Number(String(widthEl?widthEl.value:'').replace(',','.'));
+   }
 
    if(!(d.tool>0)||!(d.safe>0)||!(d.approach>0)||!(d.inner>0)||!(d.depth<0)||!(width>0)){
     out.value='';
-    alert('Controlla i dati della tastatura Renishaw: numero utensile, Z sicurezza, quota avvicinamento, punto interno e profondità negativa.');
+    alert('Controlla i dati della tastatura Renishaw: profilo, numero utensile, Z sicurezza, quota avvicinamento, punto interno e profondità negativa.');
     return;
    }
 

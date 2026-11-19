@@ -13,15 +13,18 @@ export function checkExample(code,core,arc){
 }
 export async function apply(){
  const core=await readFile('dist/cnc-preforo.js','utf8'),updates=[],checks=[];
- for(const[file,key,arc]of [['iso-v2.js','iso-smart-v2',false],['arc.js','iso-smart-arc',true]]){
+ for(const[file,key,arc]of [['iso-v2.js','iso-smart-v2',false],['arc.js','iso-smart-arc',true]]){\
   const source=resetSaved(await readFile('dist/'+file,'utf8'),key);new Script(source);checks.push(checkExample(source,core,arc));updates.push([file,source]);
  }
  let ui=await readFile('dist/preforo-ui.js','utf8');
  ui=once(ui,"let saved={};try{saved=JSON.parse(localStorage.getItem(storageKey)||'{}')||{};}catch{}",'let saved={};');new Script(ui);
- let html=await readFile('dist/index.html','utf8');html=once(html,'<script src="preforo-ui.js"></script>','<script src="preforo-ui.js"></script>\n<script src="generation-demo.js"></script>');
+ let html=await readFile('dist/index.html','utf8');
+ html=once(html,'<script src="preforo-ui.js"></script>','<script src="preforo-ui.js"></script>\n<script src="generation-demo.js"></script>\n<script src="cnc-simulator.js"></script>');
  new Script(await readFile('generation-demo.js','utf8'));
  for(const[file,source]of updates)await writeFile('dist/'+file,source);
- await writeFile('dist/preforo-ui.js',ui);await writeFile('dist/index.html',html);await copyFile('generation-demo.js','dist/generation-demo.js');
+ await writeFile('dist/preforo-ui.js',ui);await writeFile('dist/index.html',html);
+ await copyFile('generation-demo.js','dist/generation-demo.js');
+ await copyFile('cnc-simulator.js','dist/cnc-simulator.js');
  console.log('Esempi iniziali generati e verificati:',JSON.stringify(checks));
 }
 if(process.argv[1]&&import.meta.url===new URL(process.argv[1],'file://').href)await apply();

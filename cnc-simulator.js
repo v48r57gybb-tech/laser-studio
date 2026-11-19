@@ -1,382 +1,590 @@
-(function(){
+(function(root){
 'use strict';
 
-function parseIso(isoText){
- const lines=isoText.split(/\r?\n/);
- const moves=[];
- let currentTool=null;
- let currentFamily='mill';
- let x=0,y=0,z=100;
- let isProbeCycle=false;
+const TOOL_COLORS = {
+ probe: '#ff4d6d',
+ mill: '#ff901a',
+ drill: '#ffd13b',
+ chamfer: '#d946ef',
+ tap: '#10b981'
+};
 
- for(let line of lines){
-  const clean=line.trim();
-  if(!clean || clean.startsWith('%')) continue;
+function parseISO(text){
+ if(!text) return [];
+ const lines = text.split(/\r?\n/);
+ const ops = [];
+ let curX = 0, curY = 0, curZ = 50;
+ let curTool = 'mill';
+ let curToolName = 'T6 (FRESA)';
 
-  const tMatch=clean.match(/T(\d+)\s*M6/i);
-  if(tMatch){
-   currentTool=Number(tMatch[1]);
-   if(currentTool===28) currentFamily='probe';
-   else if(clean.includes('FRESA')) currentFamily='mill';
-   else if(clean.includes('PUNTA')) currentFamily='drill';
-   else if(clean.includes('SVASATORE')) currentFamily='chamfer';
-   else if(clean.includes('MASCHIO')) currentFamily='tap';
+ for(let i=0; i<lines.length; i++){
+  const raw = lines[i].trim();
+  if(!raw) continue;
+
+  if(/T\d+\s+M6/i.test(raw)){
+   const mTool = raw.match(/T(\d+)/i);
+   const tNum = mTool ? Number(mTool[1]) : 6;
+   if(tNum === 28 || /OMP|SONDA/i.test(raw)){ curTool = 'probe'; curToolName = 'T' + tNum + ' · SONDA RENISHAW'; }
+   else if(tNum === 4 || /PUNTA|DRILL/i.test(raw)){ curTool = 'drill'; curToolName = 'T' + tNum + ' · PUNTA FORATURA'; }
+   else if(tNum === 5 || /SVASAT|CHAMFER/i.test(raw)){ curTool = 'chamfer'; curToolName = 'T' + tNum + ' · SVASATORE'; }
+   else if(tNum === 7 || /MASCH|TAP/i.test(raw)){ curTool = 'tap'; curToolName = 'T' + tNum + ' · MASCHIO'; }
+   else { curTool = 'mill'; curToolName = 'T' + tNum + ' · FRESA RIFILI'; }
   }
 
-  if(clean.includes('G65 P9811') || clean.includes('G65 P9812')){
-   const zM=clean.match(/Z(-?\d+(?:\.\d*)?)/i);
-   const xM=clean.match(/X(-?\d+(?:\.\d*)?)/i);
-   const yM=clean.match(/Y(-?\d+(?:\.\d*)?)/i);
-   moves.push({
-    tool:currentTool||28,
-    family:'probe',
-    type:'probe',
-    x:xM?Number(xM[1]):x,
-    y:yM?Number(yM[1]):y,
-    z:zM?Number(zM[1]):z,
-    desc:'Tastatura'
-   });
-   continue;
-  }
+  const xm = raw.match(/(?:^|\s)X(-?\d+(?:\.\d*)?)/i);
+  const ym = raw.match(/(?:^|\s)Y(-?\d+(?:\.\d*)?)/i);
+  const zm = raw.match(/(?:^|\s)Z(-?\d+(?:\.\d*)?)/i);
 
-  if(clean.match(/G98\s+(G81|G82|G83|G73|G84)/i)){
-   const cycle=clean.match(/G98\s+(G\d+)/i)[1].toUpperCase();
-   const zM=clean.match(/Z(-?\d+(?:\.\d*)?)/i);
-   const rM=clean.match(/R(-?\d+(?:\.\d*)?)/i);
-   const targetZ=zM?Number(zM[1]):-10;
-   const planeR=rM?Number(rM[1]):3;
-   moves.push({
-    tool:currentTool,
-    family:currentFamily,
-    type:'cycle',
-    cycle,
-    x,y,
-    planeR,
-    targetZ,
-    desc:cycle
-   });
-   continue;
-  }
+  const newX = xm ? Number(xm[1]) : curX;
+  const newY = ym ? Number(ym[1]) : curY;
+  const newZ = zm ? Number(zm[1]) : curZ;
 
-  const xm=clean.match(/(?:^|\s)X(-?\d+(?:\.\d*)?)/i);
-  const ym=clean.match(/(?:^|\s)Y(-?\d+(?:\.\d*)?)/i);
-  const zm=clean.match(/(?:^|\s)Z(-?\d+(?:\.\d*)?)/i);
+  const isRapid = /G00?\b|P9810/i.test(raw) && !/G8[1-4]|G73/i.test(raw);
+  const isCut = /G0?1\b|P9811|P9812/i.test(raw);
+  const isCycle = /G8[1-4]|G73/i.test(raw);
 
-  if(xm) x=Number(xm[1]);
-  if(ym) y=Number(ym[1]);
-  if(zm) z=Number(zm[1]);
-
-  if(xm||ym||zm){
-   const isRapid=clean.includes('G0 ') || clean.includes('G00') || clean.includes('P9810');
-   moves.push({
-    tool:currentTool,
-    family:currentFamily,
-    type:isRapid?'rapid':'feed',
-    x,y,z,
-    desc:isRapid?'G0 Rapido':'G1 Taglio'
-   });
+  if(xm || ym || zm || isCycle || isCut){
+   if(isCycle){
+    const rMatch = raw.match(/R(-?\d+(?:\.\d*)?)/i);
+    const rPlane = rMatch ? Number(rMatch[1]) : 3;
+    ops.push({ type: 'cycle', x: newX, y: newY, z: newZ, r: rPlane, tool: curTool, toolName: curToolName, raw });
+   } else {
+    ops.push({ type: isRapid ? 'rapid' : 'feed', from: { x: curX, y: curY, z: curZ }, to: { x: newX, y: newY, z: newZ }, tool: curTool, toolName: curToolName, raw });
+   }
+   curX = newX; curY = newY; curZ = newZ;
   }
  }
- return moves;
+ return ops;
 }
 
-function initEngine(mode){
- const isArc=mode==='arc';
- const btn=document.getElementById(isArc?'simBtnArc':'simBtnStraight');
- const box=document.getElementById(isArc?'simBoxArc':'simBoxStraight');
- const output=document.getElementById(isArc?'arcOutput':'output');
- const canvas=document.getElementById(isArc?'simCanvasArc':'simCanvasStraight');
- const feedText=document.getElementById(isArc?'simFeedArc':'simFeedStraight');
- const playBtn=document.getElementById(isArc?'simPlayArc':'simPlayStraight');
- const resetBtn=document.getElementById(isArc?'simResetArc':'simResetStraight');
- const viewTopBtn=document.getElementById(isArc?'simViewTopArc':'simViewTopStraight');
- const viewIsoBtn=document.getElementById(isArc?'simViewIsoArc':'simViewIsoStraight');
- const closeBtn=document.getElementById(isArc?'simCloseArc':'simCloseStraight');
+function initSimulator(){
+ const sections = [
+  { outCard: 'straightOutput', outText: 'output', mode: 'straight' },
+  { outCard: 'arcOutputCard', outText: 'arcOutput', mode: 'arc' }
+ ];
 
- if(!btn||!box||!output||!canvas) return;
+ for(const s of sections){
+  const card = document.getElementById(s.outCard);
+  const textarea = document.getElementById(s.outText);
+  if(!card || !textarea || card.querySelector('.sim-container')) continue;
 
- const colors={
-  probe:'#ff4d6d',
-  mill:'#ff901a',
-  drill:'#ffd000',
-  chamfer:'#d946ef',
-  tap:'#10b981'
- };
+  const actions = card.querySelector('.actions');
+  const simBtn = document.createElement('button');
+  simBtn.type = 'button';
+  simBtn.className = 'btn-sim-start';
+  simBtn.style.cssText = 'background:#ff901a!important;color:#031627!important;border-color:#ff901a!important;font-weight:750;box-shadow:0 0 14px rgba(255,144,26,0.4);';
+  simBtn.innerHTML = '▶ SIMULAZIONE 3D';
+  simBtn.disabled = true;
 
- let moves=[];
- let stepIndex=0;
- let isPlaying=false;
- let viewMode='3d';
- let animFrame=null;
- let lastTime=0;
+  if(actions) actions.insertBefore(simBtn, actions.firstChild);
 
- function syncCanvas(){
-  const rect=canvas.parentElement.getBoundingClientRect();
-  canvas.width=rect.width*window.devicePixelRatio||900;
-  canvas.height=rect.height*window.devicePixelRatio||520;
- }
+  const container = document.createElement('div');
+  container.className = 'sim-container';
+  container.hidden = true;
+  container.style.cssText = 'position:relative;width:100%;background:#02101e;border:2px solid #00dce9;border-radius:14px;padding:12px;margin:12px 0;box-shadow:inset 0 0 24px #000;';
 
- function getPartParams(){
-  if(!isArc){
-   const len=Number(document.getElementById('length')?.value)||1000;
-   const wid=Number(document.getElementById('width')?.value)||16.5;
-   const hgt=Number(document.getElementById('height')?.value)||10;
-   return {len,wid,hgt};
-  }else{
-   const rad=Number(document.getElementById('aRadius')?.value)||990;
-   const wid=Number(document.getElementById('aWidth')?.value)||23;
-   const hgt=Number(document.getElementById('aHeight')?.value)||13.5;
-   const isLeft=document.getElementById('aCurve')?.value==='left';
-   return {rad,wid,hgt,isLeft};
+  container.innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;justify-content:space-between;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button type="button" class="sim-play" style="background:#00dce9;color:#031627;font-weight:700;">Avvia</button>
+        <button type="button" class="sim-reset">Reset</button>
+        <button type="button" class="sim-view-top">Vista dall’alto</button>
+        <button type="button" class="sim-view-3d">Vista 3D</button>
+        <button type="button" class="sim-focus-tool" style="background:#153c56;color:#65f3ff;">Inquadra utensile</button>
+        <button type="button" class="sim-focus-all">Inquadra tutto</button>
+      </div>
+      <div>
+        <button type="button" class="sim-close" style="background:#471c30;color:#ffd6df;border-color:#ff93aa;">Chiudi Simulazione</button>
+      </div>
+    </div>
+    <div style="position:relative;width:100%;height:520px;border-radius:10px;overflow:hidden;background:#031627;touch-action:none;">
+      <canvas class="sim-canvas" style="display:block;width:100%;height:100%;"></canvas>
+      <div class="sim-hud" style="position:absolute;bottom:10px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;pointer-events:none;color:#eaf4fc;font:13px monospace;background:rgba(3,22,39,0.85);padding:8px 14px;border-radius:8px;border:1px solid #1a4a68;">
+        <span class="sim-tool-info">Utensile: —</span>
+        <span class="sim-coord-info">X: 0.00  Y: 0.00  Z: 50.00</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:13px;color:#bdd0de;">
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#ff4d6d;display:inline-block;"></span> Sonda Renishaw</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#ff901a;display:inline-block;"></span> Fresa Rifili</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#ffd13b;display:inline-block;"></span> Punta Foratura</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#d946ef;display:inline-block;"></span> Svasatore</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#10b981;display:inline-block;"></span> Maschio</span>
+      <span style="margin-left:auto;color:#65f3ff;">Usa un dito per spostare (Pan) · Due dita per ingrandire (Pinch-zoom)</span>
+    </div>
+  `;
+
+  card.insertBefore(container, textarea);
+
+  const canvas = container.querySelector('.sim-canvas');
+  const ctx = canvas.getContext('2d');
+  const playBtn = container.querySelector('.sim-play');
+  const resetBtn = container.querySelector('.sim-reset');
+  const topViewBtn = container.querySelector('.sim-view-top');
+  const view3dBtn = container.querySelector('.sim-view-3d');
+  const focusToolBtn = container.querySelector('.sim-focus-tool');
+  const focusAllBtn = container.querySelector('.sim-focus-all');
+  const closeBtn = container.querySelector('.sim-close');
+  const toolInfo = container.querySelector('.sim-tool-info');
+  const coordInfo = container.querySelector('.sim-coord-info');
+
+  let state = {
+   mode: s.mode,
+   ops: [],
+   stepIndex: 0,
+   stepProgress: 0,
+   playing: false,
+   viewMode: '3d', // '3d' | 'top'
+   followTool: false,
+   camera: {
+    x: 0,
+    y: 0,
+    zoom: 1.5,
+    angle: Math.PI / 6,
+    tilt: 0.55
+   },
+   holesDone: new Set(),
+   probeFlash: 0
+  };
+
+  function updateSimButtonState(){
+   simBtn.disabled = !textarea.value.trim();
   }
- }
+  const observer = new MutationObserver(updateSimButtonState);
+  observer.observe(textarea, { attributes: true, childList: true, characterData: true });
+  textarea.addEventListener('input', updateSimButtonState);
+  textarea.addEventListener('change', updateSimButtonState);
 
- function project(px,py,pz,cx,cy,scale){
-  if(viewMode==='top'){
-   return [cx + px*scale, cy - py*scale];
-  }
-  const isoX = (px - py) * 0.866;
-  const isoY = (px + py) * 0.5 * 0.5 - pz * 0.8;
-  return [cx + isoX*scale, cy + isoY*scale];
- }
-
- function render(){
-  const ctx=canvas.getContext('2d');
-  const w=canvas.width, h=canvas.height;
-  ctx.clearRect(0,0,w,h);
-
-  const part=getPartParams();
-  let scale=1;
-  let cx=w/2, cy=h/2;
-
-  if(!isArc){
-   scale=Math.min(w/(part.len*1.4), h/(part.wid*12));
-   if(viewMode==='3d') scale*=0.85;
-   cx = w*0.15;
-   cy = h*0.55;
-  }else{
-   scale=Math.min(w/(part.rad*2.4), h/(part.rad*2.4));
-   if(viewMode==='3d') scale*=0.75;
-   cx = w*0.45;
-   cy = h*0.65;
+  function resizeCanvas(){
+   const rect = canvas.getBoundingClientRect();
+   canvas.width = rect.width * (window.devicePixelRatio || 1);
+   canvas.height = rect.height * (window.devicePixelRatio || 1);
   }
 
-  ctx.strokeStyle='#10384f';
-  ctx.lineWidth=1;
-  for(let x=40;x<w;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-  for(let y=40;y<h;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  function getGeometry(){
+   if(state.mode === 'straight'){
+    const length = Number(document.getElementById('length')?.value) || 1000;
+    const width = Number(document.getElementById('width')?.value) || 23;
+    const height = Number(document.getElementById('height')?.value) || 13.5;
+    return { type: 'straight', length, width, height };
+   } else {
+    const R = Number(document.getElementById('aRadius')?.value) || 990;
+    const width = Number(document.getElementById('aWidth')?.value) || 23;
+    const height = Number(document.getElementById('aHeight')?.value) || 13.5;
+    const count = Number(document.getElementById('aCount')?.value) || 19;
+    const chord = Number(document.getElementById('aStandardChord')?.value) || 172.568;
+    const leftVal = Number(document.getElementById('aLeftValue')?.value) || 64.795;
+    const rightVal = Number(document.getElementById('aRightValue')?.value) || 64.795;
+    const a0 = leftVal / R;
+    const da = 2 * Math.asin(chord / (2 * R));
+    const totalAngle = a0 + (count - 1) * da + (rightVal / R);
+    return { type: 'arc', R, width, height, count, chord, a0, da, totalAngle };
+   }
+  }
 
-  ctx.fillStyle='#0f3854';
-  ctx.strokeStyle='#376078';
-  ctx.lineWidth=2;
+  function resetView(autoFit){
+   const geom = getGeometry();
+   state.followTool = false;
+   if(state.mode === 'straight'){
+    state.camera.zoom = canvas.width / (geom.length * 1.35);
+    state.camera.x = canvas.width * 0.15;
+    state.camera.y = canvas.height * 0.55;
+   } else {
+    state.camera.zoom = canvas.width / (geom.R * 1.5);
+    state.camera.x = canvas.width * 0.25;
+    state.camera.y = canvas.height * 0.65;
+   }
+  }
 
-  if(!isArc){
-   const p1=project(0,-part.wid/2,0,cx,cy,scale);
-   const p2=project(part.len,-part.wid/2,0,cx,cy,scale);
-   const p3=project(part.len,part.wid/2,0,cx,cy,scale);
-   const p4=project(0,part.wid/2,0,cx,cy,scale);
-   ctx.beginPath();
-   ctx.moveTo(p1[0],p1[1]);
-   ctx.lineTo(p2[0],p2[1]);
-   ctx.lineTo(p3[0],p3[1]);
-   ctx.lineTo(p4[0],p4[1]);
-   ctx.closePath();
-   ctx.fill();
-   ctx.stroke();
+  function toScreen(x, y, z){
+   const zm = state.camera.zoom;
+   if(state.viewMode === 'top'){
+    return {
+     x: state.camera.x + x * zm,
+     y: state.camera.y - y * zm
+    };
+   }
+   const cosA = Math.cos(state.camera.angle);
+   const sinA = Math.sin(state.camera.angle);
+   const tilt = state.camera.tilt;
+   const isoX = (x * cosA - y * sinA) * zm;
+   const isoY = ((x * sinA + y * cosA) * tilt - z * 0.9) * zm;
+   return {
+    x: state.camera.x + isoX,
+    y: state.camera.y + isoY
+   };
+  }
 
-   if(viewMode==='3d'){
-    const b1=project(0,-part.wid/2,-part.hgt,cx,cy,scale);
-    const b2=project(part.len,-part.wid/2,-part.hgt,cx,cy,scale);
-    const b3=project(part.len,part.wid/2,-part.hgt,cx,cy,scale);
+  function drawPiece(){
+   const geom = getGeometry();
+   ctx.save();
+
+   if(geom.type === 'straight'){
+    const p1 = toScreen(0, -geom.width/2, 0);
+    const p2 = toScreen(geom.length, -geom.width/2, 0);
+    const p3 = toScreen(geom.length, geom.width/2, 0);
+    const p4 = toScreen(0, geom.width/2, 0);
+
+    const b1 = toScreen(0, -geom.width/2, -geom.height);
+    const b2 = toScreen(geom.length, -geom.width/2, -geom.height);
+    const b3 = toScreen(geom.length, geom.width/2, -geom.height);
+    const b4 = toScreen(0, geom.width/2, -geom.height);
+
+    ctx.fillStyle = '#0a2943';
+    ctx.strokeStyle = '#376078';
+    ctx.lineWidth = 1.5;
+
     ctx.beginPath();
-    ctx.moveTo(p1[0],p1[1]);ctx.lineTo(b1[0],b1[1]);
-    ctx.lineTo(b2[0],b2[1]);ctx.lineTo(p2[0],p2[1]);
-    ctx.lineTo(p3[0],p3[1]);ctx.lineTo(b3[0],b3[1]);
-    ctx.stroke();
-   }
-  }else{
-   ctx.beginPath();
-   const totalAng=Math.PI/2.5;
-   const sign=part.isLeft?1:-1;
-   const segs=40;
-   const outerPts=[], innerPts=[];
-   for(let i=0;i<=segs;i++){
-    const th=(i/segs)*totalAng;
-    const rOut=part.rad+part.wid/2;
-    const rIn=part.rad-part.wid/2;
-    const ox=rOut*Math.sin(th)*sign, oy=rOut*(1-Math.cos(th));
-    const ix=rIn*Math.sin(th)*sign, iy=rIn*(1-Math.cos(th));
-    outerPts.push(project(ox,oy,0,cx,cy,scale));
-    innerPts.push(project(ix,iy,0,cx,cy,scale));
-   }
-   ctx.moveTo(outerPts[0][0],outerPts[0][1]);
-   for(let p of outerPts) ctx.lineTo(p[0],p[1]);
-   for(let i=innerPts.length-1;i>=0;i--) ctx.lineTo(innerPts[i][0],innerPts[i][1]);
-   ctx.closePath();
-   ctx.fill();
-   ctx.stroke();
-  }
+    ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(b1.x, b1.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
 
-  const orig=project(0,0,0,cx,cy,scale);
-  const axX=project(40,0,0,cx,cy,scale);
-  const axY=project(0,40,0,cx,cy,scale);
-  const axZ=project(0,0,40,cx,cy,scale);
-
-  ctx.lineWidth=3;
-  ctx.strokeStyle='#ff4d6d';ctx.beginPath();ctx.moveTo(orig[0],orig[1]);ctx.lineTo(axX[0],axX[1]);ctx.stroke();
-  ctx.strokeStyle='#54d98c';ctx.beginPath();ctx.moveTo(orig[0],orig[1]);ctx.lineTo(axY[0],axY[1]);ctx.stroke();
-  if(viewMode==='3d'){
-   ctx.strokeStyle='#00dce9';ctx.beginPath();ctx.moveTo(orig[0],orig[1]);ctx.lineTo(axZ[0],axZ[1]);ctx.stroke();
-  }
-
-  ctx.fillStyle='#fff';
-  ctx.font='12px system-ui';
-  ctx.fillText('X',axX[0]+4,axX[1]);
-  ctx.fillText('Y',axY[0]+4,axY[1]);
-  if(viewMode==='3d') ctx.fillText('Z',axZ[0]+4,axZ[1]-4);
-  ctx.fillText('G56 (X0 Y0 Z0)',orig[0]-20,orig[1]-10);
-
-  if(!moves.length) return;
-
-  const count=Math.min(stepIndex,moves.length);
-  ctx.lineWidth=2;
-
-  for(let i=1;i<count;i++){
-   const m1=moves[i-1], m2=moves[i];
-   const pStart=project(m1.x,m1.y,m1.z,cx,cy,scale);
-   const pEnd=project(m2.x,m2.y,m2.z,cx,cy,scale);
-
-   if(m2.type==='rapid'){
-    ctx.setLineDash([4,4]);
-    ctx.strokeStyle='rgba(143,246,255,0.45)';
-   }else{
-    ctx.setLineDash([]);
-    ctx.strokeStyle=colors[m2.family]||'#fff';
-   }
-
-   ctx.beginPath();
-   ctx.moveTo(pStart[0],pStart[1]);
-   ctx.lineTo(pEnd[0],pEnd[1]);
-   ctx.stroke();
-  }
-  ctx.setLineDash([]);
-
-  const currentMove=moves[Math.min(count,moves.length-1)];
-  if(currentMove){
-   const toolPos=project(currentMove.x,currentMove.y,currentMove.z,cx,cy,scale);
-   const toolTop=project(currentMove.x,currentMove.y,currentMove.z+60,cx,cy,scale);
-   const tCol=colors[currentMove.family]||'#00dce9';
-
-   ctx.strokeStyle=tCol;
-   ctx.lineWidth=6;
-   ctx.beginPath();
-   ctx.moveTo(toolTop[0],toolTop[1]);
-   ctx.lineTo(toolPos[0],toolPos[1]);
-   ctx.stroke();
-
-   if(currentMove.family==='probe'){
-    ctx.fillStyle='#ff4d6d';
+    ctx.fillStyle = '#123c54';
     ctx.beginPath();
-    ctx.arc(toolPos[0],toolPos[1],6,0,Math.PI*2);
+    ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    const o = toScreen(0, 0, 0);
+    const ox = toScreen(40, 0, 0);
+    const oy = toScreen(0, 40, 0);
+    const oz = toScreen(0, 0, 40);
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#ff4d6d'; ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(ox.x, ox.y); ctx.stroke();
+    ctx.strokeStyle = '#54d98c'; ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(oy.x, oy.y); ctx.stroke();
+    ctx.strokeStyle = '#00dce9'; ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(oz.x, oz.y); ctx.stroke();
+
+   } else {
+    const R = geom.R;
+    const w = geom.width;
+    const h = geom.height;
+    const N = 70;
+    const dTh = geom.totalAngle / N;
+
+    ctx.fillStyle = '#123c54';
+    ctx.strokeStyle = '#00dce9';
+    ctx.lineWidth = 1.5;
+
+    ctx.beginPath();
+    for(let i=0; i<=N; i++){
+     const th = i * dTh;
+     const rInner = R - w/2;
+     const x = R - rInner * Math.cos(th);
+     const y = rInner * Math.sin(th);
+     const pt = toScreen(x, y, 0);
+     if(i===0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+    }
+    for(let i=N; i>=0; i--){
+     const th = i * dTh;
+     const rOuter = R + w/2;
+     const x = R - rOuter * Math.cos(th);
+     const y = rOuter * Math.sin(th);
+     const pt = toScreen(x, y, 0);
+     ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.closePath();
     ctx.fill();
-    if(currentMove.type==='probe'){
-     ctx.strokeStyle='#54d98c';
-     ctx.lineWidth=3;
+    ctx.stroke();
+
+    ctx.strokeStyle = '#65f3ff';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    for(let i=0; i<=N; i++){
+     const th = i * dTh;
+     const x = R - R * Math.cos(th);
+     const y = R * Math.sin(th);
+     const pt = toScreen(x, y, 0);
+     if(i===0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+   }
+
+   ctx.restore();
+  }
+
+  function drawHoles(){
+   for(const holeKey of state.holesDone){
+    const [hx, hy] = holeKey.split(',').map(Number);
+    const pt = toScreen(hx, hy, 0);
+    ctx.save();
+    ctx.fillStyle = '#031627';
+    ctx.strokeStyle = '#ffd13b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, Math.max(3, 4 * state.camera.zoom * 0.2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+   }
+  }
+
+  function drawTool(x, y, z, toolType){
+   const p = toScreen(x, y, z);
+   const col = TOOL_COLORS[toolType] || '#fff';
+   ctx.save();
+
+   if(toolType === 'probe'){
+    ctx.strokeStyle = '#00dce9';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 50);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    if(state.probeFlash > 0){
+     ctx.strokeStyle = '#54d98c';
+     ctx.lineWidth = 3;
      ctx.beginPath();
-     ctx.arc(toolPos[0],toolPos[1],14,0,Math.PI*2);
+     ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
+     ctx.stroke();
+     state.probeFlash--;
+    }
+   } else if(toolType === 'mill'){
+    ctx.fillStyle = col;
+    ctx.fillRect(p.x - 7, p.y - 45, 14, 45);
+    ctx.strokeStyle = '#031627';
+    ctx.lineWidth = 1.5;
+    for(let i=0; i<3; i++){
+     ctx.beginPath();
+     ctx.moveTo(p.x - 7, p.y - 35 + i * 12);
+     ctx.lineTo(p.x + 7, p.y - 27 + i * 12);
      ctx.stroke();
     }
-   }else{
-    ctx.fillStyle=tCol;
+   } else if(toolType === 'drill'){
+    ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.arc(toolPos[0],toolPos[1],5,0,Math.PI*2);
+    ctx.moveTo(p.x - 6, p.y - 45);
+    ctx.lineTo(p.x + 6, p.y - 45);
+    ctx.lineTo(p.x + 6, p.y - 8);
+    ctx.lineTo(p.x, p.y);
+    ctx.lineTo(p.x - 6, p.y - 8);
+    ctx.closePath();
     ctx.fill();
+   } else if(toolType === 'chamfer'){
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(p.x - 12, p.y - 25);
+    ctx.lineTo(p.x + 12, p.y - 25);
+    ctx.lineTo(p.x, p.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#668399';
+    ctx.fillRect(p.x - 4, p.y - 45, 8, 20);
+   } else if(toolType === 'tap'){
+    ctx.fillStyle = col;
+    ctx.fillRect(p.x - 6, p.y - 45, 12, 45);
+    ctx.strokeStyle = '#031627';
+    ctx.lineWidth = 1.5;
+    for(let i=0; i<5; i++){
+     ctx.beginPath();
+     ctx.moveTo(p.x - 6, p.y - 40 + i * 8);
+     ctx.lineTo(p.x + 6, p.y - 36 + i * 8);
+     ctx.stroke();
+    }
    }
 
-   feedText.textContent='Utensile: T'+(currentMove.tool||'—')+' ('+currentMove.family.toUpperCase()+') · X: '+currentMove.x.toFixed(2)+'  Y: '+currentMove.y.toFixed(2)+'  Z: '+currentMove.z.toFixed(2)+' · '+currentMove.desc;
+   ctx.restore();
   }
- }
 
- function loop(ts){
-  if(!isPlaying) return;
-  if(ts-lastTime>40){
-   stepIndex++;
-   if(stepIndex>=moves.length){
-    stepIndex=moves.length;
-    isPlaying=false;
-    playBtn.textContent='Riavvia';
+  function render(){
+   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+   ctx.strokeStyle = 'rgba(55,96,120,0.2)';
+   ctx.lineWidth = 1;
+   const gridStep = 40;
+   for(let gx=0; gx<canvas.width; gx+=gridStep){
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, canvas.height); ctx.stroke();
    }
-   lastTime=ts;
+   for(let gy=0; gy<canvas.height; gy+=gridStep){
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(canvas.width, gy); ctx.stroke();
+   }
+
+   drawPiece();
+   drawHoles();
+
+   let curX = 0, curY = 0, curZ = 50, curTool = 'mill';
+
+   if(state.ops.length > 0 && state.stepIndex < state.ops.length){
+    const op = state.ops[state.stepIndex];
+    curTool = op.tool;
+    toolInfo.textContent = op.toolName;
+
+    if(op.type === 'cycle'){
+     curX = op.x; curY = op.y;
+     const zTop = 10, zBottom = op.z;
+     const p = state.stepProgress;
+     curZ = p < 0.5 ? zTop - (zTop - zBottom) * (p * 2) : zBottom + (zTop - zBottom) * ((p - 0.5) * 2);
+     if(p > 0.48) state.holesDone.add(curX.toFixed(2) + ',' + curY.toFixed(2));
+    } else {
+     const t = state.stepProgress;
+     curX = op.from.x + (op.to.x - op.from.x) * t;
+     curY = op.from.y + (op.to.y - op.from.y) * t;
+     curZ = op.from.z + (op.to.z - op.from.z) * t;
+     if(op.tool === 'probe' && /P9811|P9812/i.test(op.raw) && t > 0.85) state.probeFlash = 4;
+    }
+
+    coordInfo.textContent = `X: ${curX.toFixed(2)}  Y: ${curY.toFixed(2)}  Z: ${curZ.toFixed(2)}`;
+
+    if(state.followTool){
+     const scr = toScreen(curX, curY, curZ);
+     state.camera.x += (canvas.width / 2 - scr.x) * 0.05;
+     state.camera.y += (canvas.height / 2 - scr.y) * 0.05;
+    }
+   }
+
+   drawTool(curX, curY, curZ, curTool);
+  }
+
+  function loop(){
+   if(state.playing && state.ops.length > 0){
+    state.stepProgress += 0.045;
+    if(state.stepProgress >= 1){
+     state.stepProgress = 0;
+     state.stepIndex++;
+     if(state.stepIndex >= state.ops.length){
+      state.stepIndex = state.ops.length - 1;
+      state.playing = false;
+      playBtn.textContent = 'Avvia';
+     }
+    }
+   }
    render();
+   requestAnimationFrame(loop);
   }
-  if(isPlaying) animFrame=requestAnimationFrame(loop);
- }
 
- function openSim(){
-  const iso=output.value.trim();
-  if(!iso) return;
-  moves=parseIso(iso);
-  stepIndex=0;
-  box.hidden=false;
-  output.hidden=true;
-  syncCanvas();
-  render();
-  box.scrollIntoView({behavior:'smooth',block:'center'});
- }
+  simBtn.addEventListener('click', () => {
+   const isoText = textarea.value;
+   if(!isoText.trim()){ alert('Genera prima il programma ISO!'); return; }
+   state.ops = parseISO(isoText);
+   state.stepIndex = 0;
+   state.stepProgress = 0;
+   state.holesDone.clear();
+   state.playing = true;
+   playBtn.textContent = 'Pausa';
+   textarea.hidden = true;
+   container.hidden = false;
+   resizeCanvas();
+   resetView(true);
+  });
 
- function closeSim(){
-  isPlaying=false;
-  if(animFrame) cancelAnimationFrame(animFrame);
-  box.hidden=true;
-  output.hidden=false;
- }
+  closeBtn.addEventListener('click', () => {
+   state.playing = false;
+   container.hidden = true;
+   textarea.hidden = false;
+  });
 
- btn.addEventListener('click',openSim);
- closeBtn.addEventListener('click',closeSim);
+  playBtn.addEventListener('click', () => {
+   state.playing = !state.playing;
+   playBtn.textContent = state.playing ? 'Pausa' : 'Riprendi';
+  });
 
- playBtn.addEventListener('click',()=>{
-  if(stepIndex>=moves.length) stepIndex=0;
-  isPlaying=!isPlaying;
-  playBtn.textContent=isPlaying?'Pausa':'Riprendi';
-  if(isPlaying){
-   lastTime=performance.now();
-   animFrame=requestAnimationFrame(loop);
-  }else if(animFrame){
-   cancelAnimationFrame(animFrame);
-  }
- });
+  resetBtn.addEventListener('click', () => {
+   state.stepIndex = 0;
+   state.stepProgress = 0;
+   state.holesDone.clear();
+   state.playing = false;
+   playBtn.textContent = 'Avvia';
+   resetView(false);
+  });
 
- resetBtn.addEventListener('click',()=>{
-  isPlaying=false;
-  if(animFrame) cancelAnimationFrame(animFrame);
-  playBtn.textContent='Avvia';
-  stepIndex=0;
-  render();
- });
-
- viewTopBtn.addEventListener('click',()=>{
-  viewMode='top';
-  render();
- });
-
- viewIsoBtn.addEventListener('click',()=>{
-  viewMode='3d';
-  render();
- });
-
- window.addEventListener('resize',()=>{
-  if(!box.hidden){
-   syncCanvas();
+  topViewBtn.addEventListener('click', () => {
+   state.viewMode = 'top';
    render();
+  });
+
+  view3dBtn.addEventListener('click', () => {
+   state.viewMode = '3d';
+   render();
+  });
+
+  focusToolBtn.addEventListener('click', () => {
+   state.followTool = !state.followTool;
+   focusToolBtn.style.background = state.followTool ? '#00dce9' : '#153c56';
+   focusToolBtn.style.color = state.followTool ? '#031627' : '#65f3ff';
+  });
+
+  focusAllBtn.addEventListener('click', () => {
+   resetView(true);
+  });
+
+  let isDragging = false;
+  let lastTouchX = 0, lastTouchY = 0;
+  let pinchStartDist = 0;
+  let pinchStartZoom = 1;
+
+  function dist(t1, t2){
+   return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
   }
- });
+
+  canvas.addEventListener('mousedown', e => {
+   isDragging = true;
+   lastTouchX = e.clientX;
+   lastTouchY = e.clientY;
+  });
+  window.addEventListener('mousemove', e => {
+   if(!isDragging) return;
+   const dx = e.clientX - lastTouchX;
+   const dy = e.clientY - lastTouchY;
+   state.camera.x += dx;
+   state.camera.y += dy;
+   lastTouchX = e.clientX;
+   lastTouchY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+
+  canvas.addEventListener('wheel', e => {
+   e.preventDefault();
+   const factor = e.deltaY < 0 ? 1.15 : 0.85;
+   state.camera.zoom = Math.max(0.1, Math.min(30, state.camera.zoom * factor));
+  }, { passive: false });
+
+  canvas.addEventListener('touchstart', e => {
+   if(e.touches.length === 1){
+    isDragging = true;
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+   } else if(e.touches.length === 2){
+    isDragging = false;
+    pinchStartDist = dist(e.touches[0], e.touches[1]);
+    pinchStartZoom = state.camera.zoom;
+   }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', e => {
+   if(e.touches.length === 1 && isDragging){
+    const dx = e.touches[0].clientX - lastTouchX;
+    const dy = e.touches[0].clientY - lastTouchY;
+    state.camera.x += dx;
+    state.camera.y += dy;
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+   } else if(e.touches.length === 2){
+    const curDist = dist(e.touches[0], e.touches[1]);
+    if(pinchStartDist > 0){
+     const factor = curDist / pinchStartDist;
+     state.camera.zoom = Math.max(0.1, Math.min(30, pinchStartZoom * factor));
+    }
+   }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', e => {
+   if(e.touches.length === 0) isDragging = false;
+   if(e.touches.length < 2) pinchStartDist = 0;
+  });
+
+  window.addEventListener('resize', () => {
+   if(!container.hidden) resizeCanvas();
+  });
+
+  requestAnimationFrame(loop);
+ }
 }
 
-function boot(){
- initEngine('straight');
- initEngine('arc');
-}
-
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
-else boot();
-})();
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSimulator); else initSimulator();
+})(globalThis);
