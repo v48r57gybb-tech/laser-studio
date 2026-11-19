@@ -1,8 +1,9 @@
-name: Deploy to GitHub Pages
+name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - feature/lamatura-v2
   workflow_dispatch:
 
 permissions:
@@ -16,41 +17,18 @@ concurrency:
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install dependencies and build
-        run: |
-          npm ci || npm install
-          npm run build
-
-      - name: Prepare static site
-        run: |
-          mkdir -p site
-          if [ -d "dist" ]; then
-            cp -r dist/* site/
-          else
-            cp -r * site/
-          fi
-
-      - name: Setup Pages
+      - name: Configure Pages
         uses: actions/configure-pages@v5
-
-      - name: Upload artifact
+        with:
+          enablement: true
+      - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./site
-
+          path: .
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
