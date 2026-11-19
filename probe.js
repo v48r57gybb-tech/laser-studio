@@ -10,7 +10,7 @@ function init(){
    widthId:'width',
    prefix:'sp',
    title:'Tastatura iniziale Renishaw (Opzionale)',
-   tip:'La sonda utilizza G56 come origine provvisoria, aggiorna il riferimento con S3 e impiega T28/H28 con sfera Ø6 mm. Misura Z superiore, larghezza Y0 e battuta SX.'
+   tip:'La sonda utilizza G56 come origine provvisoria, aggiorna il riferimento con S3 e impiega T/H selezionato con sfera Ø6 mm. Misura Z superiore, mezzeria larghezza Y0 e battuta SX con sovramateriale.'
   },
   {
    form:'arcForm',
@@ -20,9 +20,21 @@ function init(){
    widthId:'aWidth',
    prefix:'ap',
    title:'Tastatura iniziale Renishaw (Opzionale)',
-   tip:'La sonda utilizza G56 come origine provvisoria, aggiorna il riferimento con S3 e impiega T28/H28 con sfera Ø6 mm. Misura Z superiore, mezzeria arco su X e battuta grezza iniziale su Y.'
+   tip:'La sonda utilizza G56 come origine provvisoria, aggiorna il riferimento con S3 e impiega T/H selezionato con sfera Ø6 mm. Misura Z superiore, mezzeria curvatura su X e battuta grezza iniziale su Y.'
   }
  ];
+
+ const toolsList = Array.from({ length: 28 }, (_, i) => [i + 1, 'T' + (i + 1) + ' / H' + (i + 1)]);
+
+ const probeTips = {
+  Tool: 'Numero di stazione della torretta e correttore lunghezza H associato per la sonda Renishaw (predefinito T28 / H28).',
+  Safe: 'Quota Z di sicurezza e svincolo rapido (G65 P9810) durante gli spostamenti sopra il pezzo e prima di spegnere la sonda.',
+  TopX: 'Coordinata X sul grezzo dove la sfera della sonda scende per rilevare la superficie superiore del pezzo.',
+  TopY: 'Coordinata Y sul grezzo dove la sfera della sonda scende per rilevare la superficie superiore del pezzo.',
+  Approach: 'Distanza fuori dal grezzo da cui la sonda avvia l’avvicinamento protetto prima del contatto con la battuta.',
+  Inner: 'Quota intermedia di sicurezza prima dell’inizio della corsa di misura effettiva verso la faccia.',
+  Depth: 'Profondità negativa Z a cui si posiziona il centro della sfera per eseguire le misure sui fianchi del profilo.'
+ };
 
  for(const c of configs){
   const form=document.getElementById(c.form);
@@ -32,19 +44,32 @@ function init(){
   const card=document.createElement('section');
   card.className='card';
   card.id=c.prefix+'ProbeCard';
+
+  function makeProbeField(k, label, isSelect, defaultValue){
+   return '<div class="field" id="field-'+c.prefix+k+'">' +
+     '<label for="'+c.prefix+k+'">'+label+
+     '<button class="info" type="button" data-probetip="'+c.prefix+k+'" aria-label="Informazioni '+label+'">i</button>' +
+     '</label>' +
+     (isSelect
+       ? '<select id="'+c.prefix+k+'">' + toolsList.map(([v, t]) => '<option value="'+v+'"'+(v===28?' selected':'')+'>'+t+'</option>').join('') + '</select>'
+       : '<input id="'+c.prefix+k+'" inputmode="decimal" value="'+defaultValue+'" autocomplete="off">') +
+     '<p class="tip" id="probetip-'+c.prefix+k+'" hidden>'+probeTips[k]+'</p>' +
+     '</div>';
+  }
+
   card.innerHTML='<h2>'+c.title+'</h2>'+
    '<div class="field">'+
      '<label><input type="checkbox" id="'+c.prefix+'Enabled"> Aggiungi tastatura iniziale del pezzo</label>'+
    '</div>'+
    '<div id="'+c.prefix+'Body" hidden>'+
      '<div class="grid">'+
-       '<div class="field"><label for="'+c.prefix+'Tool">Sonda (Torretta T / Correttore H)</label><input id="'+c.prefix+'Tool" inputmode="numeric" value="28"></div>'+
-       '<div class="field"><label for="'+c.prefix+'Safe">Z sicurezza svincolo (mm)</label><input id="'+c.prefix+'Safe" inputmode="decimal" value="100"></div>'+
-       '<div class="field"><label for="'+c.prefix+'TopX">Punto Z · Quota X (mm)</label><input id="'+c.prefix+'TopX" inputmode="decimal" value="0"></div>'+
-       '<div class="field"><label for="'+c.prefix+'TopY">Punto Z · Quota Y (mm)</label><input id="'+c.prefix+'TopY" inputmode="decimal" value="10"></div>'+
-       '<div class="field"><label for="'+c.prefix+'Approach">Quota avvicinamento esterno (mm)</label><input id="'+c.prefix+'Approach" inputmode="decimal" value="25"></div>'+
-       '<div class="field"><label for="'+c.prefix+'Inner">Punto interno di misura (mm)</label><input id="'+c.prefix+'Inner" inputmode="decimal" value="10"></div>'+
-       '<div class="field"><label for="'+c.prefix+'Depth">Profondità misura laterale Z (mm)</label><input id="'+c.prefix+'Depth" inputmode="decimal" value="-4"></div>'+
+       makeProbeField('Tool', 'Sonda (Torretta T / Correttore H)', true, '28') +
+       makeProbeField('Safe', 'Z sicurezza svincolo (mm)', false, '100') +
+       makeProbeField('TopX', 'Punto Z · Quota X (mm)', false, '0') +
+       makeProbeField('TopY', 'Punto Z · Quota Y (mm)', false, '10') +
+       makeProbeField('Approach', 'Quota avvicinamento esterno (mm)', false, '25') +
+       makeProbeField('Inner', 'Punto interno di misura (mm)', false, '10') +
+       makeProbeField('Depth', 'Profondità misura laterale Z (mm)', false, '-4') +
      '</div>'+
      '<p class="tip">'+c.tip+'</p>'+
    '</div>';
@@ -63,6 +88,14 @@ function init(){
     body.hidden=!this.checked;
    });
   }
+
+  card.addEventListener('click', function(e){
+   const btn = e.target.closest('[data-probetip]');
+   if(!btn) return;
+   e.preventDefault();
+   const tipBox = document.getElementById('probetip-' + btn.dataset.probetip);
+   if(tipBox) tipBox.hidden = !tipBox.hidden;
+  });
  }
 
  function read(c){
