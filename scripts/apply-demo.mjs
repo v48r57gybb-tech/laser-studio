@@ -3,7 +3,7 @@ import { Script, createContext } from 'node:vm';
 function once(text,before,after){if(text.split(before).length!==2)throw new Error('Esempi iniziali: riferimento non univoco: '+before);return text.replace(before,after);}
 export function resetSaved(text,key){return once(text,"const saved = JSON.parse(localStorage.getItem('"+key+"') || 'null');",'const saved = null;');}
 export function checkExample(code,core,arc){
- const boundary=arc?'  function initArcUI() {':"if (typeof document !== 'undefined') {\";
+ const boundary=arc?'  function initArcUI() {':"if (typeof document !== 'undefined') {";
  const pos=code.indexOf(boundary);if(pos<0)throw new Error('Confine generatore non trovato');
  const prefix=code.slice(0,pos),end=arc?'globalThis.demoOutput = generateArcISO({...arcDefaults,aRules:[]});})();':'globalThis.demoOutput = generate({...defaults});';
  const context=createContext({});new Script(core).runInContext(context,{timeout:2000});new Script(prefix+'\n'+end).runInContext(context,{timeout:2000});
