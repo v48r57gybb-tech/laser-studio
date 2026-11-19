@@ -15,7 +15,7 @@ function parseISO(text){
  const ops = [];
  let curX = 0, curY = 0, curZ = 50;
  let curTool = 'mill';
- let curToolName = 'T6 (FRESA)';
+ let curToolName = 'T6 · FRESA RIFILI';
 
  for(let i=0; i<lines.length; i++){
   const raw = lines[i].trim();
@@ -72,7 +72,7 @@ function initSimulator(){
   const simBtn = document.createElement('button');
   simBtn.type = 'button';
   simBtn.className = 'btn-sim-start';
-  simBtn.style.cssText = 'background:#ff901a!important;color:#031627!important;border-color:#ff901a!important;font-weight:750;box-shadow:0 0 14px rgba(255,144,26,0.4);';
+  simBtn.style.cssText = 'background:#ff901a!important;color:#031627!important;border-color:#ff901a!important;font-weight:750;box-shadow:0 0 14px rgba(255,144,26,0.5);';
   simBtn.innerHTML = '▶ SIMULAZIONE 3D';
   simBtn.disabled = true;
 
@@ -134,13 +134,13 @@ function initSimulator(){
    stepIndex: 0,
    stepProgress: 0,
    playing: false,
-   viewMode: '3d', // '3d' | 'top'
+   viewMode: '3d',
    followTool: false,
    camera: {
     x: 0,
     y: 0,
     zoom: 1.5,
-    angle: Math.PI / 6,
+    angle: Math.PI / 4,
     tilt: 0.55
    },
    holesDone: new Set(),
@@ -190,9 +190,9 @@ function initSimulator(){
     state.camera.x = canvas.width * 0.15;
     state.camera.y = canvas.height * 0.55;
    } else {
-    state.camera.zoom = canvas.width / (geom.R * 1.5);
-    state.camera.x = canvas.width * 0.25;
-    state.camera.y = canvas.height * 0.65;
+    state.camera.zoom = canvas.width / (geom.R * 1.45);
+    state.camera.x = canvas.width * 0.20;
+    state.camera.y = canvas.height * 0.70;
    }
   }
 
@@ -257,7 +257,7 @@ function initSimulator(){
     const R = geom.R;
     const w = geom.width;
     const h = geom.height;
-    const N = 70;
+    const N = 80;
     const dTh = geom.totalAngle / N;
 
     ctx.fillStyle = '#123c54';
@@ -312,7 +312,7 @@ function initSimulator(){
     ctx.strokeStyle = '#ffd13b';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(pt.x, pt.y, Math.max(3, 4 * state.camera.zoom * 0.2), 0, Math.PI * 2);
+    ctx.arc(pt.x, pt.y, Math.max(3, 4 * state.camera.zoom * 0.25), 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.restore();

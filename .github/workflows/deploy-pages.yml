@@ -24,16 +24,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies and build
+        run: |
+          npm ci || npm install
+          npm run build
+
       - name: Prepare static site
         run: |
           mkdir -p site
-          # Copia i file web principali se presenti
-          for f in index.html arc.html arc.js iso-v2.js app.js vector.html; do
-            if [ -f "$f" ]; then cp "$f" site/; fi
-          done
-          # Copia le cartelle opzionali se presenti
-          if [ -d "icons" ]; then cp -r icons site/; fi
-          if [ -d "lib" ]; then cp -r lib site/; fi
+          if [ -d "dist" ]; then
+            cp -r dist/* site/
+          else
+            cp -r * site/
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
