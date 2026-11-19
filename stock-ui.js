@@ -1,183 +1,42 @@
-import {createProject,validateProject,exportProject,importProject,prepare,createArchive} from './lib/stock-workspace.mjs';
+import {validateProject,exportProject,importProject,createArchive} from './lib/stock-workspace.mjs';
 import {generateProgram} from './lib/stock-program.mjs';
+import {geometryFields,numericInput,applyFinished,initialProject,usedTools,readSetup,labels,help} from './lib/stock-ui-model.mjs';
 
-const $=id=>document.getElementById(id);
-let project=createProject(),archive=null,revision=0;
-
-const OP_FIELDS={
- probe:[['axes','Assi (X,Y,Z)','text'],['xyMethod','Strategia XY','select',['surfaces','midpoint']],['clearance','Margine sfera','number'],['expectedError','Errore atteso','number'],['overtravel','Q ricerca','number'],['positionFeed','F protetto','number'],['topPointX','Punto Z X','number'],['topPointY','Punto Z Y','number'],['sideTipZ','Z laterale punta','number'],['xSide','Lato X','select',['min','max']],['ySide','Lato Y','select',['min','max']],['macroProfileConfirmed','Profilo macro confermato','bool'],['calibrationConfirmed','Calibrazione confermata','bool'],['provisionalOriginConfirmed','Origine provvisoria confermata','bool'],['ballBottomReferenceConfirmed','Riferimento punta sfera confermato','bool']],
- facing:[['stepOver','Passo laterale','number']],
- roughing:[['depth','Profondita','number'],['radialStep','Impegno laterale','number']],
- finishing:[['depth','Profondita','number']],
- chamfer:[['width','Larghezza smusso','number']],
- drilling:[['pattern','Schema','select',['single','line','grid','circle']],['x','X','number'],['y','Y','number'],['count','Numero','number'],['pitch','Interasse','number'],['angle','Angolo','number'],['rows','Righe','number'],['columns','Colonne','number'],['pitchX','Passo X','number'],['pitchY','Passo Y','number'],['circleDiameter','Diametro cerchio','number'],['depth','Profondita','number'],['depthReference','Riferimento','select',['tip']],['mode','Modo','select',['blind','through']],['rPlane','Piano R','number'],['cycle','Ciclo','select',['G81','G83','G73']],['q','Q','number'],['breakthroughConfirmed','Passante confermato','bool']],
- pocket:[['shape','Forma','select',['obround','rounded-rectangle']],['x','Centro X','number'],['y','Centro Y','number'],['length','Lunghezza','number'],['width','Larghezza','number'],['radius','Raggio','number'],['angle','Angolo','number'],['depth','Profondita','number'],['stepZ','Passo Z','number'],['stepOver','Passo laterale','number'],['entry','Ingresso','select',['ramp','predrill']],['rampAngle','Angolo rampa','number'],['finishLeadMargin','Margine finitura','number'],['finish','Finitura','bool']]
-};
-
-const DEFAULTS={
- probe:()=>({axes:['Z','X','Y'],xyMethod:'surfaces',clearance:5,expectedError:0.5,overtravel:2,positionFeed:1000,topPoint:{x:0,y:0},sideTipZ:-5,xSide:'min',ySide:'max',macroProfileConfirmed:false,calibrationConfirmed:false,provisionalOriginConfirmed:false,ballBottomReferenceConfirmed:false}),
- facing:()=>({stepOver:20}),
- roughing:()=>({depth:5,radialStep:3}),
- finishing:()=>({depth:5}),
- chamfer:()=>({width:1}),
- drilling:()=>({pattern:'single',x:10,y:10,count:1,pitch:10,angle:0,rows:1,columns:1,pitchX:10,pitchY:10,circleDiameter:20,depth:10,depthReference:'tip',mode:'blind',rPlane:2,cycle:'G81',q:1,breakthroughConfirmed:false}),
- pocket:()=>({shape:'obround',x:25,y:15,length:40,width:16,radius:8,angle:0,depth:5,stepZ:2,stepOver:5,entry:'ramp',rampAngle:5,finishLeadMargin:1.5,finish:false})
-};
-
-function num(v){const n=Number(v);return Number.isFinite(n)?n:0;}
-function bool(v){return v===true||v==='true';}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function status(msg,err){const s=$('stStatus');s.className='notice'+(err?' error':' success');s.textContent=msg;}
-
-function readProject(){
- const g=project.geometry,f=g.finished;
- f.type=$('stType').value;
- if(['box','plate'].includes(f.type)){f.width=num($('stWidth').value);f.depth=num($('stDepth').value);}
- if(f.type!=='custom')f.height=num($('stHeight').value);
- if(['cylinder','tube'].includes(f.type)){f.diameter=num($('stDiameter').value);if(f.type==='tube')f.innerDiameter=num($('stInner').value);}
- if(['L','U','T'].includes(f.type))f.thickness=num($('stThickness').value);
- if(f.type==='custom'){try{f.points=JSON.parse($('stPoints').value);}catch(e){}}
- g.origin.xy=$('stOrigin').value;
- for(const k of ['xMinus','xPlus','yMinus','yPlus','zMinus','zPlus'])g.allowances[k]=num($('st_'+k).value);
- project.setup={safeZ:num($('stSafeZ').value),changeZ:num($('stChangeZ').value),externalMargin:num($('stMargin').value),topFacedConfirmed:bool($('stTopFaced').value),externalFinishedConfirmed:bool($('stExtFinished').value),finishStockConfirmed:bool($('stFinishStock').value)};
- return project;
-}
-
-function fillStatic(){
- const g=project.geometry,f=g.finished;
- $('stType').value=f.type;$('stOrigin').value=g.origin.xy;
- $('stWidth').value=f.width??'';$('stDepth').value=f.depth??'';$('stHeight').value=f.height??'';
- $('stDiameter').value=f.diameter??'';$('stInner').value=f.innerDiameter??'';$('stThickness').value=f.thickness??'';
- $('stPoints').value=f.points?JSON.stringify(f.points):'[]';
- for(const k of ['xMinus','xPlus','yMinus','yPlus','zMinus','zPlus'])$('st_'+k).value=g.allowances[k];
- const s=project.setup||{};$('stSafeZ').value=s.safeZ??'';$('stChangeZ').value=s.changeZ??'';$('stMargin').value=s.externalMargin??'';
- $('stTopFaced').checked=!!s.topFacedConfirmed;$('stExtFinished').checked=!!s.externalFinishedConfirmed;$('stFinishStock').checked=!!s.finishStockConfirmed;
-}
-
-function renderTools(){
- $('stTools').innerHTML=project.tools.map(t=>{
-  const extra=[];
-  if(t.kind==='mill')extra.push(`<label><input type="checkbox" data-tk="centerCutting" ${t.centerCutting?'checked':''}> centro tagliente</label><input type="number" data-tk="maxRampAngle" placeholder="Angolo rampa" value="${t.maxRampAngle??''}">`);
-  if(t.kind==='chamfer')extra.push(`<input type="number" data-tk="angle" placeholder="Angolo" value="${t.angle??''}"><input type="number" data-tk="tipDiameter" placeholder="Punta" value="${t.tipDiameter??''}"><input type="number" data-tk="fluteLength" placeholder="Tagliente" value="${t.fluteLength??''}">`);
-  if(t.kind==='drill')extra.push(`<input type="number" data-tk="tipAngle" placeholder="Angolo punta" value="${t.tipAngle??''}"><input type="number" data-tk="fluteLength" placeholder="Tagliente" value="${t.fluteLength??''}">`);
-  return `<div class="rule" data-tool="${t.id}"><span>T${t.station} ${esc(t.kind)} ${t.diameter}</span><label><input type="checkbox" data-tk="loaded" ${t.loaded?'checked':''}> caricato</label><input type="number" data-tk="rpm" placeholder="S" value="${t.parameters.rpm??''}"><input type="number" data-tk="feed" placeholder="F" value="${t.parameters.feed??''}"><input type="number" data-tk="entryFeed" placeholder="Fz" value="${t.parameters.entryFeed??''}"><select data-tk="coolant">${['off','M8','M18'].map(c=>`<option value="${c}" ${t.parameters.coolant===c?'selected':''}>${c}</option>`).join('')}</select>${extra.join('')}</div>`;
- }).join('');
-}
-
-function defaultParams(type){return JSON.parse(JSON.stringify(DEFAULTS[type]()));}
-
-function addOp(){
- const type=$('stOpType').value;
- project.operations.push({id:'op-'+Date.now(),type,enabled:true,toolId:type==='probe'?'tool-28':type==='pocket'?'tool-4':'tool-1',parameters:defaultParams(type)});
- renderOps();
-}
-
-function renderOps(){
- $('stOps').innerHTML=project.operations.map((op,i)=>{
-  const fields=OP_FIELDS[op.type].map(([k,label,kind,options])=>{
-   let val=op.parameters[k];
-   if(op.type==='probe'&&k==='axes')val=(op.parameters.axes||[]).join(',');
-   if(op.type==='probe'&&k==='topPointX')val=op.parameters.topPoint?.x??'';
-   if(op.type==='probe'&&k==='topPointY')val=op.parameters.topPoint?.y??'';
-   if(kind==='select')return `<div class="field"><label>${label}</label><select data-op="${i}" data-k="${k}">${options.map(o=>`<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}</select></div>`;
-   if(kind==='bool')return `<div class="field"><label><input type="checkbox" data-op="${i}" data-k="${k}" ${val?'checked':''}> ${label}</label></div>`;
-   return `<div class="field"><label>${label}</label><input type="${kind==='number'?'number':'text'}" data-op="${i}" data-k="${k}" value="${val??''}"></div>`;
-  }).join('');
-  return `<div class="card" data-opcard="${i}"><h4>${op.type} · ${op.enabled?'attiva':'disattiva'}</h4><div class="grid">${fields}</div><div class="actions"><label>Utensile <select data-op="${i}" data-k="toolId">${project.tools.map(t=>`<option value="${t.id}" ${op.toolId===t.id?'selected':''}>T${t.station} ${t.kind} ${t.diameter}</option>`).join('')}</select></label><label><input type="checkbox" data-op="${i}" data-k="enabled" ${op.enabled?'checked':''}> attiva</label><button type="button" data-delop="${i}">Elimina</button></div></div>`;
- }).join('');
-}
-
-function readOps(){
- project.operations.forEach((op,i)=>{
-  const card=document.querySelector(`[data-opcard="${i}"]`);if(!card)return;
-  op.enabled=card.querySelector('[data-k="enabled"]').checked;
-  op.toolId=card.querySelector('[data-k="toolId"]').value;
-  OP_FIELDS[op.type].forEach(([k,,kind])=>{
-   const inp=card.querySelector(`[data-k="${k}"]`);if(!inp)return;
-   const raw=kind==='bool'?inp.checked:inp.value;
-   if(op.type==='probe'){
-    if(k==='axes')op.parameters.axes=String(raw).split(',').map(s=>s.trim()).filter(Boolean);
-    else if(k==='topPointX')op.parameters.topPoint={...op.parameters.topPoint,x:num(raw)};
-    else if(k==='topPointY')op.parameters.topPoint={...op.parameters.topPoint,y:num(raw)};
-    else if(kind==='number')op.parameters[k]=num(raw);
-    else if(kind==='bool')op.parameters[k]=bool(raw);
-    else op.parameters[k]=raw;
-   }else{
-    if(kind==='number')op.parameters[k]=num(raw);
-    else if(kind==='bool')op.parameters[k]=bool(raw);
-    else op.parameters[k]=raw;
-   }
-  });
- });
-}
-
-function save(){
- readProject();readOps();
- const id=$('stRecordId').value.trim();
- if(!id){status('Inserisci un ID progetto',true);return;}
- const a=archive.read();revision=a.revision;
- try{archive.save(project,{recordId:id,expectedRevision:revision});revision++;status('Progetto salvato');}catch(e){status(e.message,true);}
-}
-
-function load(){
- const id=$('stRecordId').value.trim();const a=archive.read();revision=a.revision;
- const item=a.items.find(i=>i.id===id);
- if(!item){status('Progetto non trovato',true);return;}
- project=item.project;fillStatic();renderTools();renderOps();status('Progetto caricato');
-}
-
-function remove(){
- const id=$('stRecordId').value.trim();const a=archive.read();revision=a.revision;
- try{archive.remove(id,{expectedRevision:revision,confirmed:true});revision++;status('Progetto eliminato');}catch(e){status(e.message,true);}
-}
-
-function exportProj(){readProject();readOps();$('stArchiveIO').value=exportProject(project);status('Progetto esportato');}
-
-function importProj(){
- try{project=importProject($('stArchiveIO').value);revision=archive.read().revision;fillStatic();renderTools();renderOps();status('Progetto importato');}catch(e){status(e.message,true);}
-}
-
-function generate(e){
- e.preventDefault();readProject();readOps();
- window.__stockProject=project;
- try{
-  const res=generateProgram(project);
-  $('stOutput').value=res.iso;$('stockOutputCard').hidden=false;$('stCopy').disabled=false;$('stDownload').disabled=false;
-  status('ISO candidato generato. Verificare correttori, attrezzaggio e programma sul controllo.');
- }catch(err){status(err.message,true);}
-}
-
-function bind(){
- $('stockForm').addEventListener('submit',generate);
- $('stAddOp').addEventListener('click',addOp);
- $('stTools').addEventListener('change',e=>{
-  const row=e.target.closest('[data-tool]');if(!row)return;
-  const t=project.tools.find(t=>t.id===row.dataset.tool);if(!t)return;
-  const k=e.target.dataset.tk;if(!k)return;
-  if(k==='loaded')t.loaded=e.target.checked;
-  else if(k==='coolant')t.parameters.coolant=e.target.value;
-  else if(['rpm','feed','entryFeed'].includes(k))t.parameters[k]=e.target.value===''?null:num(e.target.value);
-  else if(k==='centerCutting')t.centerCutting=e.target.checked;
-  else if(k==='maxRampAngle')t.maxRampAngle=num(e.target.value);
-  else t[k]=e.target.value===''?undefined:num(e.target.value);
- });
- $('stOps').addEventListener('change',readOps);
- $('stOps').addEventListener('click',e=>{const b=e.target.closest('[data-delop]');if(!b)return;project.operations.splice(Number(b.dataset.delop),1);renderOps();});
- $('stSave').addEventListener('click',save);
- $('stLoad').addEventListener('click',load);
- $('stDelete').addEventListener('click',remove);
- $('stExport').addEventListener('click',exportProj);
- $('stImport').addEventListener('click',importProj);
- $('stCopy').addEventListener('click',()=>{navigator.clipboard.writeText($('stOutput').value);});
- $('stDownload').addEventListener('click',()=>{const blob=new Blob([$('stOutput').value],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='grezzo.nc';a.click();});
-}
-
-function init(){
- archive=createArchive(localStorage);
- const a=archive.read();revision=a.revision;
- if(a.items.length)project=a.items[0].project;
- project.tools.forEach(t=>{if(t.kind==='mill'&&t.centerCutting===undefined){t.centerCutting=false;t.maxRampAngle=0;}});
- fillStatic();renderTools();renderOps();bind();
-}
-
-init();
+const $=id=>document.getElementById(id),form=$('stockForm');
+const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let project=initialProject(),archive=null,revision=0,recordId=null,dirty=false;
+const cache=new Map();
+const ids={width:'stWidth',depth:'stDepth',height:'stHeight',diameter:'stDiameter',innerDiameter:'stInner',thickness:'stThickness',points:'stPoints'};
+const families={face:'Fresa per spianatura',mill:'Fresa',chamfer:'Smussatore',spot:'Centrino',drill:'Punta',probe:'Sonda'};
+const compatible={probe:['probe'],facing:['face','mill'],roughing:['mill'],finishing:['mill'],chamfer:['chamfer'],drilling:['drill'],pocket:['mill']};
+const defaults={probe:{axes:['Z','X','Y'],xyMethod:'surfaces',clearance:5,expectedError:.5,overtravel:2,positionFeed:1000,sideTipZ:-5,xSide:'min',ySide:'max',macroProfileConfirmed:false,calibrationConfirmed:false,provisionalOriginConfirmed:false,ballBottomReferenceConfirmed:false},facing:{stepOver:20},roughing:{depth:5,radialStep:3},finishing:{depth:5},chamfer:{width:1},drilling:{pattern:'single',x:10,y:-10,count:1,pitch:10,angle:0,rows:1,columns:1,pitchX:10,pitchY:10,circleDiameter:20,depth:10,depthReference:'tip',mode:'blind',rPlane:2,cycle:'G81',q:1,breakthroughConfirmed:false},pocket:{shape:'rounded-rectangle',x:50,y:-50,length:40,width:30,radius:10,angle:0,depth:5,stepZ:2,stepOver:5,entry:'ramp',rampAngle:3,finishLeadMargin:1,finish:false}};
+const names={axes:'Assi da tastare',xyMethod:'Metodo XY',clearance:'Margine sfera (mm)',expectedError:'Errore iniziale atteso (mm)',overtravel:'Ricerca Q (mm)',positionFeed:'Avanzamento protetto (mm/min)',sideTipZ:'Quota punta sfera sul fianco (mm)',xSide:'Lato X',ySide:'Lato Y',macroProfileConfirmed:'Profilo macro verificato sulla macchina',calibrationConfirmed:'Calibrazione sonda verificata',provisionalOriginConfirmed:'Origine provvisoria verificata',ballBottomReferenceConfirmed:'Riferimento H alla punta della sfera verificato',stepOver:'Passo laterale (mm)',depth:'Profondità (mm)',radialStep:'Impegno laterale (mm)',width:'Larghezza (mm)',pattern:'Schema fori',x:'X rispetto allo zero (mm)',y:'Y rispetto allo zero (mm)',count:'Numero fori',pitch:'Interasse (mm)',angle:'Angolo (gradi)',rows:'Righe',columns:'Colonne',pitchX:'Passo X (mm)',pitchY:'Passo Y (mm)',circleDiameter:'Diametro distribuzione (mm)',depthReference:'Riferimento profondità',mode:'Tipo foro',rPlane:'Piano R (mm)',cycle:'Ciclo',q:'Passo Q (mm)',breakthroughConfirmed:'Uscita punta e spazio inferiore verificati',shape:'Forma',length:'Lunghezza (mm)',radius:'Raggio angoli (mm)',stepZ:'Passo in profondità (mm)',entry:'Ingresso',rampAngle:'Angolo rampa (gradi)',finishLeadMargin:'Margine ingresso finitura (mm)',finish:'Finitura pareti'};
+const choices={xyMethod:{surfaces:'Superfici singole',midpoint:'Punto medio'},xSide:{min:'Lato minimo',max:'Lato massimo'},ySide:{min:'Lato minimo',max:'Lato massimo'},pattern:{single:'Singolo',line:'Serie lineare',grid:'Griglia',circle:'Cerchio'},depthReference:{tip:'Punta utensile'},mode:{blind:'Cieco',through:'Passante'},cycle:{G81:'G81',G83:'G83',G73:'G73'},shape:{obround:'Asola oblunga','rounded-rectangle':'Tasca rettangolare raccordata'},entry:{ramp:'Rampa',predrill:'Preforo'}};
+function message(text,error=false){$('stStatus').textContent=text;$('stStatus').className='notice'+(error?' error':'');}
+function attempt(fn){try{fn();}catch(e){message(e.message,true);}}
+function invalidate(){dirty=true;$('stOutput').value='';$('stCopy').disabled=true;$('stDownload').disabled=true;$('stockOutputCard').hidden=true;delete window.__stockProject;form.dispatchEvent(new CustomEvent('stock:invalidated'));}
+function button(text,handler){const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=()=>attempt(handler);return b;}
+function info(host,text){const d=document.createElement('details');d.className='muted';const s=document.createElement('summary');s.textContent='Informazioni';d.append(s,document.createTextNode(text));host.append(d);}
+function fieldVisibility(){const active=geometryFields($('stType').value);for(const [key,id]of Object.entries(ids))$(id).closest('.field').hidden=!active.includes(key);}
+function fill(){const f=project.geometry.finished;cache.set(f.type,structuredClone(f));$('stType').value=f.type;for(const [key,id]of Object.entries(ids))$(id).value=key==='points'?JSON.stringify(f.points??[]):f[key]??'';$('stOrigin').value=project.geometry.origin.xy;for(const [key,value]of Object.entries(project.geometry.allowances))$('st_'+key).value=value;for(const [key,id]of [['safeZ','stSafeZ'],['changeZ','stChangeZ'],['externalMargin','stMargin']])$(id).value=project.setup?.[key]??initialProject().setup[key];for(const [key,id]of [['topFacedConfirmed','stTopFaced'],['externalFinishedConfirmed','stExtFinished'],['finishStockConfirmed','stFinishStock']])$(id).checked=project.setup?.[key]===true;$('stockName').value=project.name;fieldVisibility();renderOps();renderTools();}
+function collect(){let p=structuredClone(project);p.name=$('stockName').value.trim();p.geometry.origin.xy=$('stOrigin').value;for(const key of Object.keys(p.geometry.allowances))p.geometry.allowances[key]=numericInput($('st_'+key).value,key);p.setup=readSetup({safeZ:$('stSafeZ').value,changeZ:$('stChangeZ').value,externalMargin:$('stMargin').value,topFacedConfirmed:$('stTopFaced').checked,externalFinishedConfirmed:$('stExtFinished').checked,finishStockConfirmed:$('stFinishStock').checked});const values={};for(const key of geometryFields($('stType').value))values[key]=$(ids[key]).value;p=applyFinished(p,$('stType').value,values);project=p;return p;}
+function renderTools(){const host=$('stTools');host.replaceChildren();const tools=usedTools(project);if(!tools.length)host.textContent='Aggiungi una lavorazione per vedere gli utensili necessari.';for(const t of tools){const box=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent=`T${t.station} · ${families[t.kind]} Ø${t.diameter}`;box.append(legend);const loaded=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=t.loaded;check.onchange=()=>{t.loaded=check.checked;invalidate();};loaded.append(check,document.createTextNode('Utensile effettivamente caricato'));box.append(loaded);info(box,help.loaded);if(t.kind!=='probe')for(const [key,label]of [['rpm','S (giri/min)'],['feed','F (mm/min)'],['entryFeed','Ingresso/discesa (mm/min)'],['fluteLength','Lunghezza tagliente (mm)']]){const l=document.createElement('label'),i=document.createElement('input');l.textContent=label;i.type='number';i.step='any';i.value=(key==='fluteLength'?t[key]:t.parameters[key])??'';i.onchange=()=>attempt(()=>{invalidate();const value=numericInput(i.value,label);if(key==='fluteLength')t[key]=value;else t.parameters[key]=value;});l.append(i);box.append(l);}if(t.parameterStatus)info(box,t.parameterStatus);host.append(box);}}
+function renderOps(){const host=$('stOps');host.replaceChildren();project.operations.forEach((op,index)=>{const box=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent=`${index+1}. ${labels[op.type]??op.type}`;box.append(legend);const select=document.createElement('select');for(const t of project.tools.filter(t=>compatible[op.type].includes(t.kind))){const option=new Option(`T${t.station} · ${families[t.kind]} Ø${t.diameter}`,t.id);select.add(option);}select.value=op.toolId;select.onchange=()=>{op.toolId=select.value;invalidate();renderTools();};box.append(select);for(const [key,fallback]of Object.entries(defaults[op.type])){const label=document.createElement('label');label.textContent=names[key]??key;let input;if(choices[key]){input=document.createElement('select');for(const [value,text]of Object.entries(choices[key]))input.add(new Option(text,value));input.value=op.parameters[key]??fallback;}else{input=document.createElement('input');input.type=typeof fallback==='boolean'?'checkbox':typeof fallback==='number'?'number':'text';input.step='any';if(input.type==='checkbox')input.checked=op.parameters[key]===true;else input.value=Array.isArray(fallback)?(op.parameters[key]??fallback).join(','):op.parameters[key]??fallback;}input.onchange=()=>attempt(()=>{invalidate();op.parameters[key]=typeof fallback==='boolean'?input.checked:typeof fallback==='number'?numericInput(input.value,names[key]):Array.isArray(fallback)?input.value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean):input.value;});label.append(input);box.append(label);}const actions=document.createElement('div');actions.className='actions';for(const [title,delta]of [['Sposta su',-1],['Sposta giù',1]])actions.append(button(title,()=>{const next=index+delta;if(next<0||next>=project.operations.length)return;[project.operations[index],project.operations[next]]=[project.operations[next],project.operations[index]];invalidate();renderOps();}));actions.append(button('Elimina lavorazione',()=>{project.operations.splice(index,1);invalidate();renderOps();renderTools();}));box.append(actions);info(box,'Le coordinate sono riferite allo zero scelto. Le quote numeriche definiscono la posizione esatta. I controlli del generatore verificano i prerequisiti supportati; non certificano collisioni o macchina.');host.append(box);});}
+function install(){const title=document.createElement('div');title.className='actions';title.append(button('Nuova generazione',()=>{if(dirty&&!confirm('Scartare le modifiche non salvate e ricominciare?'))return;project=initialProject();recordId=null;cache.clear();invalidate();fill();dirty=false;message('Nuova generazione pronta. Parametri iniziali di prova: confermare utensili reali prima del taglio.');}));const name=document.createElement('input');name.id='stockName';name.setAttribute('aria-label','Nome progetto');title.append(name);form.prepend(title);for(const [key,id]of Object.entries(ids)){const host=$(id).closest('.field');host.querySelector('label').textContent=labels[key];info(host,help[key]??'Dimensione del pezzo finito in millimetri. Sono usati soltanto i campi del solido selezionato.');}for(const [id,key]of [['stSafeZ','safeZ'],['stChangeZ','changeZ'],['stMargin','externalMargin']])info($(id).closest('.field'),help[key]);for(const key of Object.keys(project.geometry.allowances))info($('st_'+key).closest('.field'),'Materiale aggiuntivo sul lato indicato rispetto al pezzo finito, in millimetri. Non viene applicato due volte ai percorsi.');for(const option of $('stOpType').options)option.textContent=labels[option.value]??option.textContent;const advanced=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Pezzo già parzialmente lavorato';advanced.append(summary);const setupGrid=$('stTopFaced').closest('.grid');setupGrid.after(advanced);for(const id of ['stTopFaced','stExtFinished','stFinishStock'])advanced.append($(id).closest('.field'));info(advanced,'Lascia disattivato se parti da grezzo. Queste conferme dichiarano lavorazioni già eseguite, non operazioni da aggiungere.');const archiveDetails=document.createElement('details'),archiveTitle=document.createElement('summary');archiveTitle.textContent='Archivio e scambio progetto';archiveDetails.append(archiveTitle);const oldHeading=[...form.querySelectorAll('h3')].find(h=>h.textContent==='Archivio');if(oldHeading){const grid=oldHeading.nextElementSibling;archiveDetails.append(grid,$('stArchiveIO'));oldHeading.remove();}$('stRecordId').closest('.field').hidden=true;const picker=document.createElement('select');picker.id='stockArchivePicker';picker.setAttribute('aria-label','Progetti salvati');archiveDetails.prepend(picker);form.append(archiveDetails);info(archiveDetails,'Nome progetto in alto; identificativo creato automaticamente. Il JSON serve solo per esportazione e importazione avanzate.');}
+function refreshArchive(){const picker=$('stockArchivePicker');picker.replaceChildren(new Option('Seleziona progetto',''));if(!archive)return;const data=archive.read();revision=data.revision;for(const item of data.items)picker.add(new Option(item.project.name,item.id));}
+function invalidateAll(){invalidate();message('Dati modificati: rigenerare il programma.');}
+install();
+form.addEventListener('input',invalidateAll);
+$('stType').onchange=()=>attempt(()=>{const type=$('stType').value;const old=project.geometry.finished;const draft={...old};for(const key of geometryFields(old.type))draft[key]=key==='points'?old.points:$(ids[key]).value;cache.set(old.type,draft);const values=cache.get(type)??{width:100,depth:100,height:50,diameter:60,innerDiameter:30,thickness:10,points:[{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100}]};for(const [key,id]of Object.entries(ids))$(id).value=key==='points'?JSON.stringify(values[key]??[]):values[key]??'';fieldVisibility();invalidate();});
+$('stAddOp').onclick=()=>attempt(()=>{collect();const type=$('stOpType').value;const tool=project.tools.find(t=>compatible[type].includes(t.kind));if(!tool)throw Error('Nessun utensile compatibile disponibile: configurare prima la libreria.');project.operations.push({id:'op-'+crypto.randomUUID(),type,enabled:true,toolId:tool.id,parameters:structuredClone(defaults[type])});invalidate();renderOps();renderTools();});
+form.onsubmit=e=>{e.preventDefault();attempt(()=>{invalidate();const p=collect(),result=generateProgram(p);$('stOutput').value=result.iso;window.__stockProject=structuredClone(p);$('stockOutputCard').hidden=false;$('stCopy').disabled=false;$('stDownload').disabled=false;message('ISO candidato generato. Verifica geometrica software, non collaudo macchina.');});};
+$('stCopy').onclick=()=>navigator.clipboard.writeText($('stOutput').value).catch(e=>message(e.message,true));
+$('stDownload').onclick=()=>{if(!$('stOutput').value)return;const url=URL.createObjectURL(new Blob([$('stOutput').value],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='grezzo.nc';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('stSave').onclick=()=>attempt(()=>{if(!archive)throw Error('Archivio non disponibile');const p=collect();if(!recordId)recordId='pezzo-'+crypto.randomUUID();archive.save(p,{recordId,expectedRevision:revision});dirty=false;refreshArchive();message('Progetto salvato.');});
+$('stLoad').onclick=()=>attempt(()=>{const id=$('stockArchivePicker').value;if(!id)throw Error('Seleziona un progetto');if(dirty&&!confirm('Sostituire le modifiche non salvate?'))return;const item=archive.read().items.find(i=>i.id===id);if(!item)throw Error('Progetto non trovato');project=validateProject(item.project);recordId=id;invalidate();fill();dirty=false;message('Progetto caricato. Rigenerare ISO.');});
+$('stDelete').onclick=()=>attempt(()=>{const id=$('stockArchivePicker').value;if(!id||!confirm('Eliminare il progetto selezionato dall archivio?'))return;archive.remove(id,{expectedRevision:revision,confirmed:true});if(id===recordId)recordId=null;refreshArchive();message('Progetto eliminato.');});
+$('stExport').onclick=()=>attempt(()=>{$('stArchiveIO').value=exportProject(collect());message('Progetto esportato nel riquadro JSON.');});
+$('stImport').onclick=()=>attempt(()=>{const p=importProject($('stArchiveIO').value);if(dirty&&!confirm('Sostituire le modifiche non salvate?'))return;project=p;recordId=null;invalidate();fill();message('Progetto importato, non ancora salvato.');});
+attempt(()=>{archive=createArchive(localStorage);refreshArchive();});
+fill();
+message('Progetto precompilato. Conferma soltanto gli utensili realmente caricati; S e F iniziali sono valori di prova.');

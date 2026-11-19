@@ -2,7 +2,7 @@ import {copyFile,mkdir,readFile,writeFile} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
 
 const files=['stock-ui.js','stock-sim.js'];
-const libs=['stock-geometry-tools.mjs','stock-planning.mjs','stock-program.mjs','stock-workspace.mjs'];
+const libs=['stock-geometry-tools.mjs','stock-planning.mjs','stock-program.mjs','stock-workspace.mjs','stock-ui-model.mjs'];
 
 await mkdir('dist/lib',{recursive:true});
 for(const f of files)await copyFile(f,'dist/'+f);
