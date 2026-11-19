@@ -1,177 +1,27 @@
 (function(){
 'use strict';
-const MODES=[
- {card:'straightOutput',text:'output',key:'counterbore-straight'},
- {card:'arcOutputCard',text:'arcOutput',key:'counterbore-arc'}
-];
-function $(id){return document.getElementById(id);}
-function num(v){return v==null||String(v).trim()===''?NaN:Number(String(v).replace(',','.'));}
-function extractCounterbore(text){
- const lines=text.split(/\r?\n/);
- const start=lines.findIndex(l=>/LAMATURA/i.test(l));
- if(start<0)return null;
- let end=lines.findIndex((l,i)=>i>start&&/\bM30\b|\bM02\b/.test(l));
- if(end<0)end=lines.length;
- return lines.slice(start,end);
+function segments(lines){
+ let p={x:0,y:0,z:0},motion=0;const result=[];
+ for(const raw of lines){const code=raw.replace(/\([^)]*\)/g,'');const w={};for(const m of code.matchAll(/([XYZIJ])\s*([+\-]?(?:\d+(?:\.\d*)?|\.\d+))/g))w[m[1]]=Number(m[2]);for(const m of code.matchAll(/G(\d+)/g))if([0,1,2,3].includes(Number(m[1])))motion=Number(m[1]);if(!['X','Y','Z'].some(k=>k in w))continue;const q={x:w.X??p.x,y:w.Y??p.y,z:w.Z??p.z};
+ if(motion===2||motion===3){const cx=p.x+(w.I||0),cy=p.y+(w.J||0),r=Math.hypot(p.x-cx,p.y-cy),a=Math.atan2(p.y-cy,p.x-cx);let delta=Math.atan2(q.y-cy,q.x-cx)-a;if(motion===3&&delta<=0)delta+=2*Math.PI;if(motion===2&&delta>=0)delta-=2*Math.PI;const n=Math.max(8,Math.ceil(Math.abs(delta)*r/0.2));if(n>10000)throw Error('Arco troppo lungo.');let last=p;for(let i=1;i<=n;i++){const t=i/n,next=i===n?q:{x:cx+r*Math.cos(a+delta*t),y:cy+r*Math.sin(a+delta*t),z:p.z+(q.z-p.z)*t};result.push({a:last,b:next,cut:true});last=next;}}else result.push({a:p,b:q,cut:motion===1});p=q;if(result.length>500000)throw Error('Percorso troppo lungo.');
+ }return result;
 }
-function parseToolpath(lines){
- const segments=[];let pos={x:0,y:0,z:0};
- for(const raw of lines){
-  const code=raw.replace(/\([^)]*\)/g,'').split(';')[0].toUpperCase().trim();
-  if(!code)continue;
-  const words={};
-  for(const m of code.matchAll(/([XYZ])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))/g))words[m[1]]=Number(m[2]);
-  const cutting=/\bG0?1\b/.test(code);
-  const target={x:words.X??pos.x,y:words.Y??pos.y,z:words.Z??pos.z};
-  if(words.X!==undefined||words.Y!==undefined||words.Z!==undefined){
-   if(cutting&&(target.z<pos.z-1e-9||Math.hypot(target.x-pos.x,target.y-pos.y)>1e-9))
-    segments.push({from:{...pos},to:{...target}});
-   pos=target;
-  }
- }
- return segments;
-}
-function initOverlay(mode){
- const card=$(mode.card),textarea=$(mode.text);
- if(!card||!textarea||card.querySelector('.cb-sim'))return;
- const button=document.createElement('button');
- button.type='button';button.className='btn-cb-sim';
- button.textContent='SIMULAZIONE LAMATURA';
- button.style.cssText='background:#10b981;color:#031627';
- (card.querySelector('.actions')||card).append(button);
- const overlay=document.createElement('div');
- overlay.className='cb-sim';overlay.hidden=true;
- overlay.innerHTML='<div class="actions"><button type="button" data-do="play">Avvia / Pausa</button><button type="button" data-do="reset">Riavvia</button><button type="button" data-do="record">Registra video</button><button type="button" data-do="close">Chiudi</button></div><label>Velocità <output>1×</output><input type="range" min="0.25" max="16" step="0.25" value="1"></label><canvas style="display:block;width:100%;height:420px;background:#031627"></canvas><p class="notice">Asportazione nominale della lamatura: verde = materiale rimosso, grigio-blu = fondo residuo. La registrazione produce un file WebM.</p>';
- card.insertBefore(overlay,textarea);
- const canvas=overlay.querySelector('canvas'),ctx=canvas.getContext('2d');
- const speed=overlay.querySelector('input'),label=overlay.querySelector('output');
- const recordButton=overlay.querySelector('[data-do=record]');
- let segments=[],grid=null,cell=1,index=0,progress=0,playing=false,last=0,recorder=null,recording=false,chunks=[];
- function readConfig(){
-  try{return JSON.parse(localStorage.getItem(mode.key)||'null')||{};}catch(e){return{};}
- }
- function buildGrid(){
-  const cfg=readConfig();
-  const toolR=Math.max(0.5,num(cfg.toolDiameter)||5)/2;
-  const depth=Math.max(0.1,num(cfg.depth)||5.4);
-  if(!segments.length)throw Error('Nessun percorso di lamatura disponibile.');
-  let loX=Infinity,hiX=-Infinity,loY=Infinity,hiY=-Infinity;
-  for(const s of segments)for(const p of [s.from,s.to]){
-   loX=Math.min(loX,p.x);hiX=Math.max(hiX,p.x);
-   loY=Math.min(loY,p.y);hiY=Math.max(hiY,p.y);
-  }
-  loX-=toolR+2;hiX+=toolR+2;loY-=toolR+2;hiY+=toolR+2;
-  cell=Math.max(0.25,toolR/3);
-  const cols=Math.ceil((hiX-loX)/cell),rows=Math.ceil((hiY-loY)/cell);
-  if(cols*rows>1200000)throw Error('Area di simulazione troppo grande.');
-  grid={loX,loY,cols,rows,cell,toolR,depth,height:new Float32Array(cols*rows).fill(0)};
- }
- function stamp(x,y,z){
-  const g=grid,r=g.toolR;
-  const c0=Math.max(0,Math.floor((x-r-g.loX)/g.cell)),c1=Math.min(g.cols-1,Math.ceil((x+r-g.loX)/g.cell));
-  const r0=Math.max(0,Math.floor((y-r-g.loY)/g.cell)),r1=Math.min(g.rows-1,Math.ceil((y+r-g.loY)/g.cell));
-  for(let row=r0;row<=r1;row++)for(let col=c0;col<=c1;col++){
-   const px=g.loX+(col+0.5)*g.cell,py=g.loY+(row+0.5)*g.cell;
-   if(Math.hypot(px-x,py-y)<=r){
-    const i=row*g.cols+col;
-    if(z<g.height[i])g.height[i]=z;
-   }
-  }
- }
- function removeMaterial(upto){
-  const g=grid;
-  for(let i=0;i<upto&&i<segments.length;i++){
-   const s=segments[i],len=Math.hypot(s.to.x-s.from.x,s.to.y-s.from.y,s.to.z-s.from.z);
-   const steps=Math.max(1,Math.ceil(len/(g.toolR/2)));
-   for(let k=0;k<=steps;k++){
-    const t=k/steps;
-    stamp(s.from.x+(s.to.x-s.from.x)*t,s.from.y+(s.to.y-s.from.y)*t,s.from.z+(s.to.z-s.from.z)*t);
-   }
-  }
- }
- function render(){
-  const g=grid;if(!g)return;
-  ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
-  const scale=Math.min(canvas.clientWidth/g.cols,canvas.clientHeight/g.rows);
-  const offX=(canvas.clientWidth-g.cols*scale)/2,offY=(canvas.clientHeight-g.rows*scale)/2;
-  for(let row=0;row<g.rows;row++)for(let col=0;col<g.cols;col++){
-   const h=g.height[row*g.cols+col];
-   const removed=h<-1e-6;
-   ctx.fillStyle=removed?'rgb('+Math.round(30+120*Math.min(1,-h/g.depth))+','+Math.round(180-80*Math.min(1,-h/g.depth))+',110)':'#16435c';
-   ctx.fillRect(offX+col*scale,offY+row*scale,Math.ceil(scale),Math.ceil(scale));
-  }
-  if(index<segments.length){
-   const s=segments[index],t=progress;
-   const x=s.from.x+(s.to.x-s.from.x)*t,y=s.from.y+(s.to.y-s.from.y)*t;
-   ctx.beginPath();
-   ctx.arc(offX+(x-g.loX)/g.cell*scale,offY+(y-g.loY)/g.cell*scale,Math.max(2,g.toolR/2*scale),0,Math.PI*2);
-   ctx.strokeStyle='#ff901a';ctx.lineWidth=2;ctx.stroke();
-  }
- }
- function loop(now){
-  const dt=last?Math.min(0.1,(now-last)/1000):0;last=now;
-  if(!overlay.hidden&&playing&&segments.length){
-   progress+=dt*Number(speed.value)*8;
-   while(progress>=1&&playing){
-    progress-=1;index++;
-    if(index>=segments.length){index=segments.length-1;progress=1;playing=false;break;}
-   }
-   removeMaterial(index+1);
-  }
-  if(!overlay.hidden)render();
-  if(recording&&index===segments.length-1&&progress>=1){
-   recording=false;playing=false;
-   if(recorder&&recorder.state!=='inactive')recorder.stop();
-  }
-  requestAnimationFrame(loop);
- }
- function startSimulation(){
-  const cb=extractCounterbore(textarea.value);
-  if(!cb)throw Error('Genera prima il programma con la lamatura attiva.');
-  segments=parseToolpath(cb);
-  if(!segments.length)throw Error('Nessun movimento di asportazione trovato.');
-  buildGrid();index=0;progress=0;
-  textarea.hidden=true;overlay.hidden=false;
-  removeMaterial(1);render();
- }
- button.onclick=()=>{
-  try{startSimulation();playing=true;}catch(error){playing=false;alert(error.message);}
- };
- overlay.addEventListener('click',e=>{
-  const action=e.target.dataset.do;if(!action)return;
-  if(action==='close'){
-   playing=false;recording=false;
-   if(recorder&&recorder.state!=='inactive')recorder.stop();
-   overlay.hidden=true;textarea.hidden=false;
-  }
-  if(action==='play')playing=!playing;
-  if(action==='reset'){index=0;progress=0;playing=false;grid.height.fill(0);removeMaterial(1);}
-  if(action==='record'){
-   if(!canvas.captureStream||!window.MediaRecorder){alert('La registrazione video non è supportata da questo browser.');return;}
-   try{
-    startSimulation();
-    chunks=[];
-    const stream=canvas.captureStream(30);
-    recorder=new MediaRecorder(stream,{mimeType:'video/webm'});
-    recorder.ondataavailable=ev=>{if(ev.data.size)chunks.push(ev.data);};
-    recorder.onstop=()=>{
-     const blob=new Blob(chunks,{type:'video/webm'});
-     const url=URL.createObjectURL(blob);
-     const a=document.createElement('a');
-     a.href=url;a.download='lamatura-'+mode.key+'.webm';a.click();
-     setTimeout(()=>URL.revokeObjectURL(url),1000);
-     recordButton.textContent='Registra video';
-    };
-    recorder.start();recording=true;playing=true;
-    recordButton.textContent='Registrazione…';
-   }catch(error){recording=false;playing=false;alert(error.message);}
-  }
-  render();
- });
- speed.oninput=()=>label.textContent=speed.value+'×';
- window.addEventListener('resize',()=>{if(!overlay.hidden)render();});
- requestAnimationFrame(loop);
-}
-function init(){MODES.forEach(initOverlay);}
+function init(){for(const mode of ['straight','arc']){
+ const card=document.getElementById(mode==='arc'?'arcOutputCard':'straightOutput'),out=document.getElementById(mode==='arc'?'arcOutput':'output');if(!card||!out)continue;
+ const btn=document.createElement('button');btn.type='button';btn.textContent='SIMULAZIONE LAMATURA';card.querySelector('.actions').append(btn);
+ const box=document.createElement('div');box.hidden=true;box.innerHTML='<div class="actions"><button data-act="play" type="button">Avvia / Pausa</button><button data-act="reset" type="button">Riavvia</button><button data-act="record" type="button">Registra video</button><button data-act="close" type="button">Chiudi</button></div><p>Asportazione nominale 2.5D della sola lamatura. Non verifica collisioni, staffaggi o compensazioni reali. Il preforo passante è mostrato in nero.</p><canvas style="width:100%;height:420px;display:block;background:#031627"></canvas><p class="cb-progress"></p>';card.insertBefore(box,out);
+ const canvas=box.querySelector('canvas'),ctx=canvas.getContext('2d'),info=box.querySelector('.cb-progress');let data,path=[],i=0,t=0,playing=false,last=0,rec=null,stream=null,depths=null,bounds,scale,ox,oy,previous=0;const cols=480,rows=260;
+ function stop(){if(rec&&rec.state!=='inactive')rec.stop();}
+ function resize(){const d=window.devicePixelRatio||1;canvas.width=Math.max(1,Math.round(canvas.clientWidth*d));canvas.height=420*d;ctx.setTransform(d,0,0,d,0,0);}
+ function prepare(){data=window.CncCounterboreIntegration?.snapshots.get(mode);if(!data||data.text!==out.value)throw Error('Generare nuovamente l’ISO con lamatura attiva.');path=segments(data.lines);if(!path.length)throw Error('Percorso vuoto.');const cs=data.plan.centers,r=data.plan.seat/2+2;bounds={x:Math.min(...cs.map(c=>c.x))-r,y:Math.min(...cs.map(c=>c.y))-r,w:Math.max(...cs.map(c=>c.x))-Math.min(...cs.map(c=>c.x))+2*r,h:Math.max(...cs.map(c=>c.y))-Math.min(...cs.map(c=>c.y))+2*r};depths=new Float32Array(cols*rows);for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const px=bounds.x+(x+.5)*bounds.w/cols,py=bounds.y+(y+.5)*bounds.h/rows;if(cs.some(c=>Math.hypot(px-c.x,py-c.y)<data.plan.hole/2))depths[y*cols+x]=-data.plan.height;}i=0;t=0;previous=0;box.hidden=false;resize();draw();}
+ function stamp(p){if(p.z>=0)return;const r=data.plan.tool/2,dx=bounds.w/cols,dy=bounds.h/rows;for(let y=Math.max(0,Math.floor((p.y-r-bounds.y)/dy));y<Math.min(rows,Math.ceil((p.y+r-bounds.y)/dy));y++)for(let x=Math.max(0,Math.floor((p.x-r-bounds.x)/dx));x<Math.min(cols,Math.ceil((p.x+r-bounds.x)/dx));x++)if(Math.hypot(bounds.x+(x+.5)*dx-p.x,bounds.y+(y+.5)*dy-p.y)<=r)depths[y*cols+x]=Math.min(depths[y*cols+x],p.z);}
+ const lerp=(s,u)=>({x:s.a.x+(s.b.x-s.a.x)*u,y:s.a.y+(s.b.y-s.a.y)*u,z:s.a.z+(s.b.z-s.a.z)*u});
+ function cut(s,a,b){if(!s.cut)return;const length=Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y,s.b.z-s.a.z)*(b-a),n=Math.max(1,Math.ceil(length/Math.min(bounds.w/cols,bounds.h/rows,data.plan.tool/4)));for(let k=0;k<=n;k++)stamp(lerp(s,a+(b-a)*k/n));}
+ function draw(){if(!depths)return;const w=canvas.clientWidth,h=420;ctx.fillStyle='#031627';ctx.fillRect(0,0,w,h);scale=Math.min((w-20)/bounds.w,(h-20)/bounds.h);ox=(w-bounds.w*scale)/2;oy=(h-bounds.h*scale)/2;const dx=bounds.w/cols*scale,dy=bounds.h/rows*scale;for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const z=depths[y*cols+x];ctx.fillStyle=z<=-data.plan.height?'#020812':z<0?'hsl(150,50%,'+(45-20*Math.min(1,-z/data.plan.depth))+'%)':'#16435c';ctx.fillRect(ox+x*dx,oy+(rows-1-y)*dy,Math.ceil(dx),Math.ceil(dy));}if(i<path.length){const p=lerp(path[i],t);ctx.strokeStyle='#ff901a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(ox+(p.x-bounds.x)*scale,oy+(bounds.h-p.y+bounds.y)*scale,data.plan.tool/2*scale,0,Math.PI*2);ctx.stroke();}info.textContent='Avanzamento '+Math.round((i+t)/path.length*100)+'% · fondo residuo nominale '+data.plan.residual+' mm minimo richiesto';}
+ function loop(now){const dt=last?Math.min(.1,(now-last)/1000):0;last=now;if(playing&&!box.hidden){if(data.text!==out.value){playing=false;stop();info.textContent='Programma cambiato: rigenerare la simulazione.';}else{let remaining=dt;while(remaining>0&&i<path.length){const s=path[i],length=Math.hypot(s.b.x-s.a.x,s.b.y-s.a.y,s.b.z-s.a.z),duration=Math.max(.005,length/(s.cut?15:500)),step=Math.min(1-t,remaining/duration);previous=t;t+=step;cut(s,previous,t);remaining-=step*duration;if(t>=1-1e-9){i++;t=0;}}draw();if(i>=path.length){playing=false;setTimeout(stop,200);}}}requestAnimationFrame(loop);}
+ btn.onclick=()=>{try{if(rec&&rec.state!=='inactive')return;prepare();playing=true;}catch(e){alert(e.message);}};
+ box.onclick=e=>{const a=e.target.dataset.act;if(!a)return;try{if(a==='close'){playing=false;stop();box.hidden=true;}if(a==='play')playing=!playing;if(a==='reset'){if(rec&&rec.state!=='inactive')return;prepare();playing=false;}if(a==='record'){if(rec&&rec.state!=='inactive')return;if(!window.MediaRecorder||!canvas.captureStream)throw Error('Registrazione non supportata dal browser.');const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(v=>MediaRecorder.isTypeSupported(v));if(!mime)throw Error('Formato WebM non supportato.');prepare();stream=canvas.captureStream(30);const chunks=[];rec=new MediaRecorder(stream,{mimeType:mime});rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};rec.onstop=()=>{stream.getTracks().forEach(t=>t.stop());const url=URL.createObjectURL(new Blob(chunks,{type:mime})),link=document.createElement('a');link.href=url;link.download='lamatura-'+mode+'.webm';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);};rec.onerror=()=>{playing=false;stream.getTracks().forEach(t=>t.stop());info.textContent='Registrazione fallita.';};rec.start();playing=true;}}catch(err){playing=false;stop();if(stream)stream.getTracks().forEach(t=>t.stop());alert(err.message);}};
+ window.addEventListener('resize',()=>{if(!box.hidden){resize();draw();}});requestAnimationFrame(loop);
+}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
