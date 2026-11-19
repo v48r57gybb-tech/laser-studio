@@ -41,11 +41,12 @@ function initOverlay(mode){
  (card.querySelector('.actions')||card).append(button);
  const overlay=document.createElement('div');
  overlay.className='cb-sim';overlay.hidden=true;
- overlay.innerHTML='<div class="actions"><button type="button" data-do="play">Avvia / Pausa</button><button type="button" data-do="reset">Riavvia</button><button type="button" data-do="close">Chiudi</button></div><label>Velocità <output>1×</output><input type="range" min="0.25" max="16" step="0.25" value="1"></label><canvas style="display:block;width:100%;height:420px;background:#031627"></canvas><p class="notice">Asportazione nominale della lamatura: verde = materiale rimosso, grigio-blu = fondo residuo.</p>';
+ overlay.innerHTML='<div class="actions"><button type="button" data-do="play">Avvia / Pausa</button><button type="button" data-do="reset">Riavvia</button><button type="button" data-do="record">Registra video</button><button type="button" data-do="close">Chiudi</button></div><label>Velocità <output>1×</output><input type="range" min="0.25" max="16" step="0.25" value="1"></label><canvas style="display:block;width:100%;height:420px;background:#031627"></canvas><p class="notice">Asportazione nominale della lamatura: verde = materiale rimosso, grigio-blu = fondo residuo. La registrazione produce un file WebM.</p>';
  card.insertBefore(overlay,textarea);
  const canvas=overlay.querySelector('canvas'),ctx=canvas.getContext('2d');
  const speed=overlay.querySelector('input'),label=overlay.querySelector('output');
- let segments=[],grid=null,cell=1,index=0,progress=0,playing=false,last=0;
+ const recordButton=overlay.querySelector('[data-do=record]');
+ let segments=[],grid=null,cell=1,index=0,progress=0,playing=false,last=0,recorder=null,recording=false,chunks=[];
  function readConfig(){
   try{return JSON.parse(localStorage.getItem(mode.key)||'null')||{};}catch(e){return{};}
  }
@@ -118,24 +119,53 @@ function initOverlay(mode){
    removeMaterial(index+1);
   }
   if(!overlay.hidden)render();
+  if(recording&&index===segments.length-1&&progress>=1){
+   recording=false;playing=false;
+   if(recorder&&recorder.state!=='inactive')recorder.stop();
+  }
   requestAnimationFrame(loop);
  }
+ function startSimulation(){
+  const cb=extractCounterbore(textarea.value);
+  if(!cb)throw Error('Genera prima il programma con la lamatura attiva.');
+  segments=parseToolpath(cb);
+  if(!segments.length)throw Error('Nessun movimento di asportazione trovato.');
+  buildGrid();index=0;progress=0;
+  textarea.hidden=true;overlay.hidden=false;
+  removeMaterial(1);render();
+ }
  button.onclick=()=>{
-  try{
-   const cb=extractCounterbore(textarea.value);
-   if(!cb)throw Error('Genera prima il programma con la lamatura attiva.');
-   segments=parseToolpath(cb);
-   if(!segments.length)throw Error('Nessun movimento di asportazione trovato.');
-   buildGrid();index=0;progress=0;playing=true;
-   textarea.hidden=true;overlay.hidden=false;
-   removeMaterial(1);render();
-  }catch(error){playing=false;alert(error.message);}
+  try{startSimulation();playing=true;}catch(error){playing=false;alert(error.message);}
  };
  overlay.addEventListener('click',e=>{
   const action=e.target.dataset.do;if(!action)return;
-  if(action==='close'){playing=false;overlay.hidden=true;textarea.hidden=false;}
+  if(action==='close'){
+   playing=false;recording=false;
+   if(recorder&&recorder.state!=='inactive')recorder.stop();
+   overlay.hidden=true;textarea.hidden=false;
+  }
   if(action==='play')playing=!playing;
   if(action==='reset'){index=0;progress=0;playing=false;grid.height.fill(0);removeMaterial(1);}
+  if(action==='record'){
+   if(!canvas.captureStream||!window.MediaRecorder){alert('La registrazione video non è supportata da questo browser.');return;}
+   try{
+    startSimulation();
+    chunks=[];
+    const stream=canvas.captureStream(30);
+    recorder=new MediaRecorder(stream,{mimeType:'video/webm'});
+    recorder.ondataavailable=ev=>{if(ev.data.size)chunks.push(ev.data);};
+    recorder.onstop=()=>{
+     const blob=new Blob(chunks,{type:'video/webm'});
+     const url=URL.createObjectURL(blob);
+     const a=document.createElement('a');
+     a.href=url;a.download='lamatura-'+mode.key+'.webm';a.click();
+     setTimeout(()=>URL.revokeObjectURL(url),1000);
+     recordButton.textContent='Registra video';
+    };
+    recorder.start();recording=true;playing=true;
+    recordButton.textContent='Registrazione…';
+   }catch(error){recording=false;playing=false;alert(error.message);}
+  }
   render();
  });
  speed.oninput=()=>label.textContent=speed.value+'×';
