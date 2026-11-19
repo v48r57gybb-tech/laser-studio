@@ -12,6 +12,7 @@
 <body>
 <header><div><small>OFFICINA SMART · VERSIONE 2.0</small><h1>Generatore ISO</h1><p>Rifili · Foratura · Maschiatura<br>Fanuc 0i-MF / G56</p></div></header>
 <main>
+<section class="card" id="animationCard"><h2>Sequenza di lavorazione</h2><canvas id="workAnimation" width="900" height="260"></canvas></section>
 <section class="card"><h2>Tipo di pezzo</h2><div class="grid"><div class="field"><label for="partType">Scegli il tipo di pezzo</label><select id="partType"><option value="straight">Pezzo dritto</option><option value="arc">Pezzo curvo ad arco</option></select></div></div><p class="muted">Il generatore per pezzi dritti resta invariato. La modalità arco calcola i fori sulla linea dei centri.</p></section>
 <form id="form" novalidate><div id="fields"></div><div class="actions"><button class="primary" type="submit">Controlla e genera ISO</button></div><div id="status" role="status" aria-live="polite" class="notice">Imposta i dati e genera il programma.</div></form>
 <form id="arcForm" novalidate hidden><div id="arcFields"></div><div class="actions"><button class="primary" type="submit">Controlla e genera ISO arco</button></div><div id="arcStatus" role="status" aria-live="polite" class="notice">Imposta i dati e genera il programma.</div></form>
@@ -22,7 +23,9 @@
 <script>
 document.addEventListener('DOMContentLoaded',function(){const modeSelect=document.getElementById('partType');if(!modeSelect)return;function updateMode(){const isArc=modeSelect.value==='arc';const straightForm=document.getElementById('form');const arcForm=document.getElementById('arcForm');const straightOutput=document.getElementById('straightOutput');const arcOutputCard=document.getElementById('arcOutputCard');if(straightForm)straightForm.hidden=isArc;if(arcForm)arcForm.hidden=!isArc;if(straightOutput)straightOutput.hidden=isArc;if(arcOutputCard)arcOutputCard.hidden=!isArc}modeSelect.addEventListener('change',updateMode);updateMode()});
 </script>
+<script src="work-animation.js"></script>
 <script src="iso-v2.js"></script>
 <script src="arc.js"></script>
+<script src="probe.js"></script>
 </body>
 </html>
