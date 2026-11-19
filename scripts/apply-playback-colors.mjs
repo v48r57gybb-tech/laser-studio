@@ -1,0 +1,21 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {Script,createContext} from 'node:vm';
+function once(text,before,after){if(text.split(before).length!==2)throw Error('Riproduzione e colori: riferimento non univoco '+before);return text.replace(before,after);}
+let sim=await readFile('dist/cnc-simulator.js','utf8');
+sim=once(sim,"if(ms.includes(0))move({...pos},'feed',{pause:true});","if(ms.includes(0)){warnings.add('Riproduzione continua: M00 non ferma l’animazione. Gli arresti nell’ISO macchina restano invariati.');move({...pos},'feed',{dwell:0.12});}");
+const context=createContext({});new Script(sim).runInContext(context,{timeout:3000});
+const ops=context.CncSimulation.parseISO('G90\nG0 X0 Y0 Z50\nM00\nG0 X20\nM30');
+if(ops.some(op=>op.pause)||ops.at(-1).to.x!==20)throw Error('Test prosecuzione dopo M00 fallito');
+let visual=await readFile('dist/simulation-visuals.js','utf8');
+visual=once(visual,"else if(kind==='drill'){add(0,0.2);add(5,5);add(38,5);}","else if(kind==='drill'){add(0,0.2);add(7,4);add(38,4);}");
+visual=once(visual,'else{add(0,5);add(38,5);}',"else if(kind==='mill'){add(0,6);add(24,6);add(24,3.5);add(38,3.5);}\n else{add(0,5);add(38,5);}");
+visual=once(visual,'shade,j});','shade,j,toolPart:hi[0]<=38});');
+const old="ctx.fillStyle=f.j<3&&kind!=='probe'?`rgb(${f.shade},${Math.round(f.shade*.83)},${Math.round(f.shade*.4)})`:`rgb(${f.shade},${Math.min(255,f.shade+12)},${Math.min(255,f.shade+22)})`;";
+const replacement="const color=({mill:[255,134,28],drill:[45,167,255],chamfer:[217,70,239],tap:[16,185,129]})[kind],light=f.shade/200;ctx.fillStyle=f.toolPart&&color?'rgb('+color.map(c=>Math.round(c*light)).join(',')+')':`rgb(${f.shade},${Math.min(255,f.shade+12)},${Math.min(255,f.shade+22)})`;";
+visual=once(visual,old,replacement);
+visual=once(visual,'for(let h=0;h<2;h++)',"for(let h=0;h<(kind==='mill'?4:2);h++)");
+visual=once(visual,'a=h*Math.PI+z*',"a=h*2*Math.PI/(kind==='mill'?4:2)+z*");
+visual=once(visual,'r=5.1,s=project',"r=kind==='mill'?(z<=24?6.1:3.6):kind==='drill'?4.1:5.1,s=project");
+new Script(visual);
+await writeFile('dist/cnc-simulator.js',sim);await writeFile('dist/simulation-visuals.js',visual);
+console.log('Riproduzione continua dopo M00 verificata. Famiglie utensili differenziate; ISO macchina invariato.');
