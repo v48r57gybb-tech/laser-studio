@@ -1,0 +1,31 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {Script,createContext} from 'node:vm';
+import assert from 'node:assert/strict';
+const path='dist/probe.js';
+let source=await readFile(path,'utf8');
+assert.equal(source.split('fmt(d.tool)').length-1,8,'Formato sonda inatteso');
+source=source.replaceAll('fmt(d.tool)','fmtTool(d.tool)');
+const anchor=' function fmt(n){';
+assert.equal(source.split(anchor).length,2);
+source=source.replace(anchor," function fmtTool(value){\n  const n=Number(value);\n  if(!Number.isInteger(n)||n<1||n>28)throw new Error('Sonda: T/H deve essere un intero da 1 a 28.');\n  return String(n);\n }\n\n"+anchor);
+const validation='if(!(d.tool>0)||';
+assert.equal(source.split(validation).length,2);
+source=source.replace(validation,'if(!Number.isInteger(d.tool)||d.tool<1||d.tool>28||');
+new Script(source,{filename:path});
+const begin=source.indexOf(' function fmtTool(value){'),end=source.indexOf('\n for(const c of configs){',begin);
+assert(begin>=0&&end>begin);
+const ctx=createContext({});
+new Script(source.slice(begin,end)+'\nglobalThis.builders=[buildStraightProbe,buildArcProbe];globalThis.toolFormat=fmtTool;').runInContext(ctx);
+for(const tool of [1,10,28])for(const build of ctx.builders){
+ const d={tool,safe:100,topX:0,topY:10,approach:25,inner:10,depth:-4};
+ const block=build(d,23);
+ assert(block.includes('\nT'+tool+' M6\n'));
+ assert(block.includes('\nG0 G43 H'+tool+' Z100.\n'));
+ assert(!/[TH]\d+\./.test(block));
+ assert(block.includes('G65 P9811 Z0. S3'));
+ assert(block.includes('G65 P9810 X0. Y10. F1000.'));
+ assert(block.includes('Z-4. R10. S3'));
+}
+for(const invalid of [0,29,2.5,NaN])assert.throws(()=>ctx.toolFormat(invalid));
+await writeFile(path,source);
+console.log('Formato T/H sonda corretto: 6 casi dritto/arco e 4 input non validi verificati. Quote e macro invariate.');
