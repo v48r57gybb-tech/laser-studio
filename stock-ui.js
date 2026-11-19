@@ -139,6 +139,7 @@ function importProj(){
 
 function generate(e){
  e.preventDefault();readProject();readOps();
+ window.__stockProject=project;
  try{
   const res=generateProgram(project);
   $('stOutput').value=res.iso;$('stockOutputCard').hidden=false;$('stCopy').disabled=false;$('stDownload').disabled=false;
