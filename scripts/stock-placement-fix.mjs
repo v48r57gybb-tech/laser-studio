@@ -1,0 +1,2 @@
+import assert from 'node:assert/strict';
+export function fixPlacementCoordinates(source){const before="op.parameters.x=numericInput(a,'X');op.parameters.y=numericInput(b,'Y');changed();draw();status.textContent=`Centro impostato:",after="const nx=numericInput(a,'X'),ny=numericInput(b,'Y');op.parameters.x=nx;op.parameters.y=ny;changed();x.value=String(nx);y.value=String(ny);draw();status.textContent=`Centro impostato:";assert.equal(source.split(before).length,2,'Sorgente posizionamento cambiato: patch da verificare');return source.replace(before,after);}

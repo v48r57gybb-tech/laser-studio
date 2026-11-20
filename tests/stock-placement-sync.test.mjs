@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
+import {fixPlacementCoordinates} from '../scripts/stock-placement-fix.mjs';
+import {numericInput} from '../lib/stock-ui-model.mjs';
+const source=await readFile(new URL('../stock-placement.mjs',import.meta.url),'utf8');
+const patched=fixPlacementCoordinates(source);
+const functionCode=patched.slice(patched.indexOf('function place(a,b)'),patched.indexOf('for(const input of [x,y])'));
+test('selezione centrale aggiorna modello e campi anche se il ridisegno non li modifica',()=>{const operation={parameters:{x:25,y:-50}},x={value:'25'},y={value:'-50'};runInNewContext(functionCode+';place(0,0);',{current:()=>operation,geometry:{},numericInput,changed:()=>{},draw:()=>{},x,y,status:{}});assert.equal(operation.parameters.x,0);assert.equal(operation.parameters.y,0);assert.equal(x.value,'0');assert.equal(y.value,'0');});
+test('input Y invalido non modifica solo X lasciando una coppia incoerente',()=>{const operation={parameters:{x:25,y:-50}};assert.throws(()=>runInNewContext(functionCode+";place(10,'errore');",{current:()=>operation,geometry:{},numericInput,changed:()=>{},draw:()=>{},x:{},y:{},status:{}}));assert.equal(operation.parameters.x,25);assert.equal(operation.parameters.y,-50);});

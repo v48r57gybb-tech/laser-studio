@@ -1,11 +1,13 @@
 import {copyFile,mkdir,readFile,writeFile} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
 import {prepareStockUI} from './stock-ui-pipeline.mjs';
+import {fixPlacementCoordinates} from './stock-placement-fix.mjs';
 const files=['stock-ui.js','stock-sim.js','stock-preview.mjs','stock-placement.mjs','stock-feedback.mjs'];
 const libs=['stock-geometry-tools.mjs','stock-planning.mjs','stock-program.mjs','stock-workspace.mjs','stock-ui-model.mjs'];
 await mkdir('dist/lib',{recursive:true});
 for(const f of files)await copyFile(f,'dist/'+f);
 for(const f of libs)await copyFile('lib/'+f,'dist/lib/'+f);
+await writeFile('dist/stock-placement.mjs',fixPlacementCoordinates(await readFile('dist/stock-placement.mjs','utf8')));
 const ui=prepareStockUI(await readFile('dist/stock-ui.js','utf8'));
 await writeFile('dist/stock-ui.js',"import {mountStockPreview} from './stock-preview.mjs';\nimport {mountStockPlacement} from './stock-placement.mjs';\n"+ui+"\nmountStockPreview({form,getGeometry:()=>project.geometry});\nmountStockPlacement({form,getProject:()=>project,replaceProject:p=>{project=p;},changed:()=>{invalidate();renderOps();renderTools();}});\n");
 let html=await readFile('dist/index.html','utf8');
@@ -13,4 +15,4 @@ if(!html.includes('<script src="stock-sim.js"></script>'))html=html.replace('</b
 if(!html.includes('<script type="module" src="stock-ui.js"></script>'))html=html.replace('</body>','<script type="module" src="stock-ui.js"></script>\n</body>');
 await writeFile('dist/index.html',html);
 for(const f of [...files,...libs.map(l=>'lib/'+l)])if(!existsSync('dist/'+f))throw new Error('File build mancante: '+f);
-console.log('Interfaccia grezzo con controlli guidati, barra e viste inclusa nella build.');
+console.log('Interfaccia grezzo e posizionamento sincronizzato inclusi nella build.');
