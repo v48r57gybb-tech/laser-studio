@@ -1,16 +1,12 @@
 import {copyFile,mkdir,readFile,writeFile} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
-import {fixToolBindings} from './stock-tool-bindings.mjs';
-import {improveStockUI} from './stock-usability.mjs';
+import {prepareStockUI} from './stock-ui-pipeline.mjs';
 const files=['stock-ui.js','stock-sim.js','stock-preview.mjs','stock-placement.mjs','stock-feedback.mjs'];
 const libs=['stock-geometry-tools.mjs','stock-planning.mjs','stock-program.mjs','stock-workspace.mjs','stock-ui-model.mjs'];
 await mkdir('dist/lib',{recursive:true});
 for(const f of files)await copyFile(f,'dist/'+f);
 for(const f of libs)await copyFile('lib/'+f,'dist/lib/'+f);
-let ui=fixToolBindings(await readFile('dist/stock-ui.js','utf8'));
-ui=ui.replace("if(key==='fluteLength')current[key]=value;else current.parameters[key]=value;","if(['fluteLength','angle','tipDiameter'].includes(key))current[key]=value;else current.parameters[key]=value;");
-ui=improveStockUI(ui.replace("if(['fluteLength','angle','tipDiameter'].includes(key))current[key]=value;else current.parameters[key]=value;","if(key==='fluteLength')t[key]=value;else t.parameters[key]=value;"));
-ui=ui.replace("if(['fluteLength','angle','tipDiameter'].includes(key))t[key]=value;else t.parameters[key]=value;","const current=project.tools.find(item=>item.id===t.id);if(!current)throw Error('Utensile non trovato nel progetto');if(['fluteLength','angle','tipDiameter'].includes(key))current[key]=value;else current.parameters[key]=value;");
+const ui=prepareStockUI(await readFile('dist/stock-ui.js','utf8'));
 await writeFile('dist/stock-ui.js',"import {mountStockPreview} from './stock-preview.mjs';\nimport {mountStockPlacement} from './stock-placement.mjs';\n"+ui+"\nmountStockPreview({form,getGeometry:()=>project.geometry});\nmountStockPlacement({form,getProject:()=>project,replaceProject:p=>{project=p;},changed:()=>{invalidate();renderOps();renderTools();}});\n");
 let html=await readFile('dist/index.html','utf8');
 if(!html.includes('<script src="stock-sim.js"></script>'))html=html.replace('</body>','<script src="stock-sim.js"></script>\n</body>');
