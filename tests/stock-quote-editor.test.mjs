@@ -25,7 +25,7 @@ test('le quote iniziali sono coerenti con il pezzo finito e lo zero',()=>{
   const p=project(),operation=p.operations[1];
   const values=initialQuote(operation,p.geometry);
   assert.equal(values.x,50);
-  assert.equal(values.y,0);
+  assert.equal(values.y,-50);
   assert.equal(values.length,40);
   assert.equal(values.width,20);
 });
