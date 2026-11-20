@@ -6,21 +6,72 @@
 <meta name="theme-color" content="#06243e">
 <title>Generatore ISO · Officina Smart</title>
 <style>
-*{box-sizing:border-box}html{scroll-behavior:smooth;color-scheme:dark}body{margin:0;background:#041b32;color:#eaf4fc;font:17px system-ui,-apple-system,sans-serif}header{background:linear-gradient(135deg,#041b32,#0b3658);color:white;padding:28px 20px;border-bottom:3px solid #00dce9;width:100%}header div,main{max-width:1400px;width:100%;margin:auto}h1{font-size:clamp(26px,6vw,40px);line-height:1.15;margin:8px 0}h2{font-size:23px;margin:0 0 20px}main{padding:20px 24px 100px;width:100%}.card{background:#0a2943;border:1px solid #376078;border-radius:20px;padding:22px;margin:0 0 24px;box-shadow:0 8px 24px #0004;width:100%}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.field{min-width:0}.field label{display:block;font-weight:650;margin:0 0 8px}input,select,button,textarea,output{font:inherit}input:not([type=checkbox]),select,output{display:block;width:100%;padding:13px;border:2px solid #7194aa;border-radius:10px;background:#061e33;color:#f3f8fc}input[type=checkbox]{width:23px;height:23px;vertical-align:middle;margin-right:10px;accent-color:#00dce9}button{cursor:pointer;border:2px solid #6393aa;border-radius:12px;padding:12px 18px;background:#153c56;color:#effaff;font-weight:600}button:disabled{opacity:.45;cursor:default}button.primary{background:#00dce9;color:#031a2c;border-color:#00dce9}button.info{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;margin-left:6px;font-size:13px;font-weight:700;border-radius:50%;border:1.5px solid #00dce9;background:#123c54;color:#65f3ff;vertical-align:middle;box-shadow:none}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #ff901a;outline-offset:3px}.tip{background:#10384f;color:#effaff;border:2px solid #548aa3;border-radius:12px;padding:12px;margin:9px 0}.err{display:block;color:#ffb8c6;font-size:14px;margin-top:6px}.bad input,.bad select{border:3px solid #ff93aa;background:#471c30;color:#fff}.good input,.good select{border-color:#54d98c}.notice{padding:14px;border:2px solid #548aa3;border-radius:12px;margin:16px 0;background:#10384f;color:#effaff}.notice.error{background:#471c30;color:#ffd6df}.notice.success{background:#103d32;color:#bcf7d4}textarea{width:100%;min-height:460px;padding:15px;border:2px solid #548aa3;border-radius:12px;font:14px/1.6 monospace;background:#031627;color:#8ff6ff}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:15px 0}small,.muted{font-size:14px;color:#bdd0de}.rule{display:grid;grid-template-columns:110px 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px}#resetStraight,#resetArc{background:#153c56!important;color:#effaff!important;border-color:#6393aa!important}#btnSaveArchive{background:#17623e!important;color:#fff!important}#archiveTableContainer th{background:#123c54;color:#effaff}#archiveTableContainer td{color:#d7e7f1!important}#archiveTableContainer [data-delitem]{background:#471c30!important;color:#ffd6df!important;border-color:#ff93aa!important}@media(max-width:768px){main{padding:16px 12px 80px}.card{padding:16px}.rule{grid-template-columns:1fr 1fr}.actions button{min-height:44px}}[hidden]{display:none!important}
+*{box-sizing:border-box}html{scroll-behavior:smooth;color-scheme:dark}body{margin:0;background:#041b32;color:#eaf4fc;font:17px system-ui,-apple-system,sans-serif}header{background:linear-gradient(135deg,#041b32,#0b3658);color:white;padding:28px 20px;border-bottom:3px solid #00dce9;width:100%}header div,main{max-width:1400px;width:100%;margin:auto}h1{font-size:clamp(26px,6vw,40px);line-height:1.15;margin:8px 0}h2{font-size:23px;margin:0 0 20px}h3{margin:18px 0 10px}h4{margin:0 0 10px}main{padding:20px 24px 100px;width:100%}.card{background:#0a2943;border:1px solid #376078;border-radius:20px;padding:22px;margin:0 0 24px;box-shadow:0 8px 24px #0004;width:100%}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.field{min-width:0}.field label{display:block;font-weight:650;margin:0 0 8px}input,select,button,textarea,output{font:inherit}input:not([type=checkbox]),select,output{display:block;width:100%;padding:13px;border:2px solid #7194aa;border-radius:10px;background:#061e33;color:#f3f8fc}input[type=checkbox]{width:23px;height:23px;vertical-align:middle;margin-right:10px;accent-color:#00dce9}button{cursor:pointer;border:2px solid #6393aa;border-radius:12px;padding:12px 18px;background:#153c56;color:#effaff;font-weight:600}button:disabled{opacity:.45;cursor:default}button.primary{background:#00dce9;color:#031a2c;border-color:#00dce9}button.info{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;margin-left:6px;font-size:13px;font-weight:700;border-radius:50%;border:1.5px solid #00dce9;background:#123c54;color:#65f3ff;vertical-align:middle;box-shadow:none}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #ff901a;outline-offset:3px}.tip{background:#10384f;color:#effaff;border:2px solid #548aa3;border-radius:12px;padding:12px;margin:9px 0}.err{display:block;color:#ffb8c6;font-size:14px;margin-top:6px}.bad input,.bad select{border:3px solid #ff93aa;background:#471c30;color:#fff}.good input,.good select{border-color:#54d98c}.notice{padding:14px;border:2px solid #548aa3;border-radius:12px;margin:16px 0;background:#10384f;color:#effaff}.notice.error{background:#471c30;color:#ffd6df}.notice.success{background:#103d32;color:#bcf7d4}textarea{width:100%;min-height:460px;padding:15px;border:2px solid #548aa3;border-radius:12px;font:14px/1.6 monospace;background:#031627;color:#8ff6ff}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:15px 0}small,.muted{font-size:14px;color:#bdd0de}.rule{display:grid;grid-template-columns:110px 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px}#resetStraight,#resetArc{background:#153c56!important;color:#effaff!important;border-color:#6393aa!important}#btnSaveArchive{background:#17623e!important;color:#fff!important}#archiveTableContainer th{background:#123c54;color:#effaff}#archiveTableContainer td{color:#d7e7f1!important}#archiveTableContainer [data-delitem]{background:#471c30!important;color:#ffd6df!important;border-color:#ff93aa!important}@media(max-width:768px){main{padding:16px 12px 80px}.card{padding:16px}.rule{grid-template-columns:1fr 1fr}.actions button{min-height:44px}}[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header><div><small>OFFICINA SMART · VERSIONE 2.0</small><h1>Generatore ISO</h1><p>Rifili · Foratura · Maschiatura<br>Fanuc 0i-MF / G56</p></div></header>
 <main>
-<section class="card"><h2>Tipo di pezzo</h2><div class="grid"><div class="field"><label for="partType">Scegli il tipo di pezzo</label><select id="partType"><option value="straight">Pezzo dritto</option><option value="arc">Pezzo curvo ad arco</option></select></div></div><p class="muted">Il generatore per pezzi dritti resta invariato. La modalità arco calcola i fori sulla linea dei centri.</p></section>
+<section class="card"><h2>Tipo di pezzo</h2><div class="grid"><div class="field"><label for="partType">Scegli il tipo di pezzo</label><select id="partType"><option value="straight">Pezzo dritto</option><option value="arc">Pezzo curvo ad arco</option><option value="stock">Lavorazione da grezzo</option></select></div></div><p class="muted">Il generatore per pezzi dritti resta invariato. La modalità arco calcola i fori sulla linea dei centri. La modalità grezzo crea un programma candidato con tastatura e lavorazioni base.</p></section>
 <form id="form" novalidate><div id="fields"></div><div class="actions"><button class="primary" type="submit">Controlla e genera ISO</button></div><div id="status" role="status" aria-live="polite" class="notice">Imposta i dati e genera il programma.</div></form>
 <form id="arcForm" novalidate hidden><div id="arcFields"></div><div class="actions"><button class="primary" type="submit">Controlla e genera ISO arco</button></div><div id="arcStatus" role="status" aria-live="polite" class="notice">Imposta i dati e genera il programma.</div></form>
+<form id="stockForm" novalidate hidden>
+<section class="card">
+<h2>Lavorazione da grezzo</h2>
+<div class="grid">
+<div class="field"><label>Tipo solido</label><select id="stType"><option value="box">Blocco</option><option value="plate">Piastra</option><option value="cylinder">Cilindro</option><option value="tube">Tubo</option><option value="L">Profilo L</option><option value="U">Profilo U</option><option value="T">Profilo T</option><option value="custom">Personalizzato</option></select></div>
+<div class="field"><label>Zero</label><select id="stOrigin"><option value="top-left">Spigolo alto sinistro</option><option value="top-right">Spigolo alto destro</option><option value="bottom-left">Spigolo basso sinistro</option><option value="bottom-right">Spigolo basso destro</option><option value="center">Centro</option></select></div>
+<div class="field"><label>X finito</label><input id="stWidth" type="number" value="100"></div>
+<div class="field"><label>Y finito</label><input id="stDepth" type="number" value="60"></div>
+<div class="field"><label>Z finito</label><input id="stHeight" type="number" value="20"></div>
+<div class="field"><label>Diametro</label><input id="stDiameter" type="number" value="50"></div>
+<div class="field"><label>Diametro interno</label><input id="stInner" type="number" value="0"></div>
+<div class="field"><label>Spessore profilo</label><input id="stThickness" type="number" value="10"></div>
+<div class="field"><label>Vertici profilo (JSON)</label><textarea id="stPoints" rows="3">[]</textarea></div>
+</div>
+<h3>Sovramateriale</h3>
+<div class="grid">
+<div class="field"><label>X-</label><input id="st_xMinus" type="number" value="2"></div>
+<div class="field"><label>X+</label><input id="st_xPlus" type="number" value="2"></div>
+<div class="field"><label>Y-</label><input id="st_yMinus" type="number" value="2"></div>
+<div class="field"><label>Y+</label><input id="st_yPlus" type="number" value="2"></div>
+<div class="field"><label>Z-</label><input id="st_zMinus" type="number" value="0"></div>
+<div class="field"><label>Z+</label><input id="st_zPlus" type="number" value="3"></div>
+</div>
+<h3>Setup</h3>
+<div class="grid">
+<div class="field"><label>Z sicurezza</label><input id="stSafeZ" type="number" value="50"></div>
+<div class="field"><label>Z cambio</label><input id="stChangeZ" type="number" value="80"></div>
+<div class="field"><label>Margine esterno</label><input id="stMargin" type="number" value="5"></div>
+<div class="field"><label><input id="stTopFaced" type="checkbox"> Superficie a Z0 confermata</label></div>
+<div class="field"><label><input id="stExtFinished" type="checkbox"> Contorno esterno finito confermato</label></div>
+<div class="field"><label><input id="stFinishStock" type="checkbox"> Residuo finitura confermato</label></div>
+</div>
+<h3>Utensili</h3>
+<div id="stTools"></div>
+<h3>Operazioni</h3>
+<div class="actions">
+<select id="stOpType"><option value="probe">Tastatura</option><option value="facing">Spianatura</option><option value="roughing">Sgrossatura contorno</option><option value="finishing">Finitura contorno</option><option value="chamfer">Smusso</option><option value="drilling">Foratura</option><option value="pocket">Tasca/Asola</option></select>
+<button id="stAddOp" type="button">Aggiungi operazione</button>
+</div>
+<div id="stOps"></div>
+<h3>Archivio</h3>
+<div class="grid">
+<div class="field"><label>ID progetto</label><input id="stRecordId" placeholder="es. pezzo-001"></div>
+<div class="field"><label>Azioni</label><div class="actions"><button id="stSave" type="button">Salva</button><button id="stLoad" type="button">Carica</button><button id="stDelete" type="button">Elimina</button><button id="stExport" type="button">Esporta</button><button id="stImport" type="button">Importa</button></div></div>
+</div>
+<textarea id="stArchiveIO" rows="4" placeholder="JSON progetto per esportazione/importazione"></textarea>
+<div class="actions"><button class="primary" type="submit">Genera ISO grezzo</button></div>
+<div id="stStatus" role="status" aria-live="polite" class="notice">Imposta i dati e genera il programma.</div>
+</section>
+</form>
 <section class="card" id="straightOutput"><h2>Il tuo programma ISO · Dritto</h2><div class="actions"><button id="copy" disabled>Copia ISO</button><button id="download" disabled>Scarica .txt</button></div><textarea id="output" readonly></textarea></section>
 <section class="card" id="arcOutputCard" hidden><h2>Il tuo programma ISO · Arco</h2><div class="actions"><button id="arcCopy" disabled>Copia ISO</button><button id="arcDownload" disabled>Scarica .txt</button></div><textarea id="arcOutput" readonly></textarea></section>
-<details><summary>Controlli e limiti del generatore</summary><p>Il verde indica dati coerenti, non un collaudo CNC. Verificare utensili, preforo, correttori, origine, staffaggi e spazio libero. Solo maschiatura destra cilindrica G84.</p><p>Per i pezzi curvi, le quote sono calcolate sulla linea dei centri dei fori. Il rifilo destro viene calcolato in coordinate assolute dallo stesso zero G56.</p></details>
+<section class="card" id="stockOutputCard" hidden><h2>Il tuo programma ISO · Grezzo</h2><div class="actions"><button id="stCopy" disabled>Copia ISO</button><button id="stDownload" disabled>Scarica .txt</button></div><textarea id="stOutput" readonly></textarea></section>
+<details><summary>Controlli e limiti del generatore</summary><p>Il verde indica dati coerenti, non un collaudo CNC. Verificare utensili, preforo, correttori, origine, staffaggi e spazio libero. Solo maschiatura destra cilindrica G84.</p><p>Per i pezzi curvi, le quote sono calcolate sulla linea dei centri dei fori. Il rifilo destro viene calcolato in coordinate assolute dallo stesso zero G56.</p><p>La modalità grezzo genera un programma candidato: verificare sonda, correttori, attrezzaggio e sequenza prima dell’uso in macchina.</p></details>
 </main>
 <script>
-document.addEventListener('DOMContentLoaded',function(){const modeSelect=document.getElementById('partType');if(!modeSelect)return;function updateMode(){const isArc=modeSelect.value==='arc';const straightForm=document.getElementById('form');const arcForm=document.getElementById('arcForm');const straightOutput=document.getElementById('straightOutput');const arcOutputCard=document.getElementById('arcOutputCard');if(straightForm)straightForm.hidden=isArc;if(arcForm)arcForm.hidden=!isArc;if(straightOutput)straightOutput.hidden=isArc;if(arcOutputCard)arcOutputCard.hidden=!isArc}modeSelect.addEventListener('change',updateMode);updateMode()});
+document.addEventListener('DOMContentLoaded',function(){const modeSelect=document.getElementById('partType');if(!modeSelect)return;function updateMode(){const v=modeSelect.value;const straightForm=document.getElementById('form');const arcForm=document.getElementById('arcForm');const stockForm=document.getElementById('stockForm');const straightOutput=document.getElementById('straightOutput');const arcOutputCard=document.getElementById('arcOutputCard');const stockOutputCard=document.getElementById('stockOutputCard');if(straightForm)straightForm.hidden=v!=='straight';if(arcForm)arcForm.hidden=v!=='arc';if(stockForm)stockForm.hidden=v!=='stock';if(straightOutput)straightOutput.hidden=v!=='straight';if(arcOutputCard)arcOutputCard.hidden=v!=='arc';if(stockOutputCard)stockOutputCard.hidden=true;}modeSelect.addEventListener('change',updateMode);updateMode();});
 </script>
 <script src="iso-v2.js"></script>
 <script src="arc.js"></script>
@@ -29,5 +80,7 @@ document.addEventListener('DOMContentLoaded',function(){const modeSelect=documen
 <script src="counterbore-straight.js"></script>
 <script src="counterbore-arc.js"></script>
 <script src="counterbore-sim.js"></script>
+<script src="stock-sim.js"></script>
+<script type="module" src="stock-ui.js"></script>
 </body>
 </html>

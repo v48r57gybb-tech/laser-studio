@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createProject,exportProject} from '../lib/stock-workspace.mjs';
+import {assignDrill} from '../lib/stock-geometry-tools.mjs';
+import {generateProgram} from '../lib/stock-program.mjs';
+import {generateGroupedProgram} from '../lib/stock-iso-groups.mjs';
+function fixture(){const r=assignDrill(createProject('Cinque fori'),6),p=r.project;p.geometry.finished={type:'box',width:100,depth:100,height:20};p.geometry.allowances.zPlus=0;p.setup={safeZ:10,changeZ:100,externalMargin:5};const tool=p.tools.find(t=>t.id===r.toolId);tool.loaded=true;tool.fluteLength=20;tool.parameters={rpm:1800,feed:120,entryFeed:50,coolant:'M8'};p.operations=Array.from({length:5},(_,i)=>({id:'foro-'+i,type:'drilling',enabled:true,toolId:tool.id,parameters:{pattern:'single',x:20+i*15,y:-20,depth:6,depthReference:'tip',mode:'blind',cycle:'G81',rPlane:2,q:1}}));return p;}
+test('generatore reale: cinque fori, un piano, un cambio utensile e un M30',()=>{const p=fixture(),before=exportProject(p),r=generateGroupedProgram(p,{programNumber:42});assert.equal(r.plans.length,1);assert.equal(r.plans[0].moves.filter(m=>m.type==='cycle').length,5);assert.equal((r.iso.match(/T11 M6/g)||[]).length,1);assert.equal((r.iso.match(/^M30$/gm)||[]).length,1);assert.equal((r.iso.match(/^G98 G81 /gm)||[]).length,5);assert.match(r.iso,/O0042/);assert.equal(r.lineMap.length,r.iso.split('\n').length);assert.equal(r.readyForMachine,false);assert.equal(exportProject(p),before);});
+test('profondità diversa produce un altro piano',()=>{const p=fixture();p.operations.at(-1).parameters.depth=8;assert.equal(generateGroupedProgram(p).plans.length,2);});
+test('elenco punti attraversa i controlli ISO reali',()=>{const p=fixture();p.operations=[{...p.operations[0],parameters:{...p.operations[0].parameters,pattern:'points',points:[{x:20,y:-20},{x:40,y:-30}]}}];assert.equal(generateGroupedProgram(p).plans[0].moves.filter(m=>m.type==='cycle').length,2);});
+test('utensile non caricato resta bloccante',()=>{const p=fixture();p.tools.find(t=>t.kind==='drill').loaded=false;assert.throws(()=>generateGroupedProgram(p));});
+test('foro fuori pezzo resta bloccante',()=>{const p=fixture();p.operations[0].parameters.x=-100;assert.throws(()=>generateGroupedProgram(p));});
+test('R sopra sicurezza resta bloccante',()=>{const p=fixture();p.operations[0].parameters.rPlane=20;assert.throws(()=>generateGroupedProgram(p));});
+test('stessi cicli e coordinate della generazione originale',()=>{const p=fixture(),a=generateProgram(p),b=generateGroupedProgram(p);assert.deepEqual(b.plans.flatMap(p=>p.moves.filter(m=>m.type==='cycle')),a.plans.flatMap(p=>p.moves.filter(m=>m.type==='cycle')));});
