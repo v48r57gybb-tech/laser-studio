@@ -31,6 +31,8 @@ jobs:
         run: node browser-tests/stock-interface.mjs
       - name: Test anteprima geometrica 3D
         run: node browser-tests/stock-preview.mjs
+      - name: Test posizionamento grafico
+        run: node browser-tests/stock-placement.mjs
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
