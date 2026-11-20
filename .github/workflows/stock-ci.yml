@@ -35,6 +35,8 @@ jobs:
         run: node browser-tests/stock-placement.mjs
       - name: Test svasatura collegata ai fori
         run: node browser-tests/stock-countersink.mjs
+      - name: Test asportazione nominale e riproduzione
+        run: node browser-tests/stock-simulation.mjs
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4

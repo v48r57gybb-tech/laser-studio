@@ -7,7 +7,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "build": "node scripts/build-branding.mjs && node scripts/apply-preforo.mjs && npm run test:generation && node scripts/apply-demo.mjs && node scripts/finalize-simulation-build.mjs && node scripts/apply-visuals.mjs && node scripts/apply-playback-colors.mjs && node scripts/apply-integrated-update.mjs && node scripts/apply-arc-profile-fixes.mjs && node scripts/fix-probe-tool-format.mjs && node scripts/apply-stock-build.mjs && node scripts/apply-stock-operation-editor.mjs && node scripts/apply-stock-countersink.mjs",
+    "build": "node scripts/build-branding.mjs && node scripts/apply-preforo.mjs && npm run test:generation && node scripts/apply-demo.mjs && node scripts/finalize-simulation-build.mjs && node scripts/apply-visuals.mjs && node scripts/apply-playback-colors.mjs && node scripts/apply-integrated-update.mjs && node scripts/apply-arc-profile-fixes.mjs && node scripts/fix-probe-tool-format.mjs && node scripts/apply-stock-build.mjs && node scripts/apply-stock-operation-editor.mjs && node scripts/apply-stock-countersink.mjs && node scripts/apply-stock-simulation.mjs",
     "test:generation": "node tests/generation-demo.cjs generation-demo.js"
   },
   "dependencies": {
