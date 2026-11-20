@@ -6,7 +6,12 @@ export function mountStockOrigin({form,getProject,replaceProject,changed}){
  const preview=form.querySelector('#stockPreview'),actions=preview?.querySelector('.actions');
  if(!field||!actions)throw Error('Comandi zero o anteprima 3D non trovati');
  const menu=document.createElement('details');menu.id='stockOriginPanel';menu.style.position='relative';
- const toggle=document.createElement('summary');toggle.textContent='Imposta 0';toggle.style.cssText='cursor:pointer;padding:8px 12px;border:1px solid #7194ab;border-radius:10px';
+ const toggle=document.createElement('summary');toggle.setAttribute('aria-label','Imposta zero pezzo');
+ const reference=actions.querySelector('button');
+ if(reference){const style=getComputedStyle(reference);for(const key of ['font','color','background','border','border-radius','padding','box-shadow','box-sizing','line-height','letter-spacing','min-height'])toggle.style.setProperty(key,style.getPropertyValue(key));}
+ toggle.style.display='inline-flex';toggle.style.alignItems='center';toggle.style.gap='5px';toggle.style.cursor='pointer';toggle.style.listStyle='none';
+ const markerStyle=document.createElement('style');markerStyle.textContent='#stockOriginPanel > summary::-webkit-details-marker{display:none} #stockOriginPanel > summary::marker{content:""}';menu.append(markerStyle);
+ const icon=document.createElement('span');icon.setAttribute('aria-hidden','true');icon.style.cssText='display:inline-block;width:16px;height:16px;flex:0 0 16px;box-sizing:border-box;border:1px solid #fff;border-radius:50%;background:linear-gradient(#000,#000) center/1px 100% no-repeat,linear-gradient(#000,#000) center/100% 1px no-repeat,conic-gradient(#000 0deg 90deg,#fff 90deg 180deg,#000 180deg 270deg,#fff 270deg 360deg)';toggle.append(document.createTextNode('Imposta'),icon);
  field.querySelector('label').textContent='Posizione dello zero XY';
  const content=document.createElement('div');content.style.cssText='padding:12px;min-width:200px;max-width:100%';
  const note=document.createElement('p');note.className='muted';note.textContent='Z0 resta sulla faccia superiore finita. Le posizioni XY sono riferite all’ingombro del finito; su forme non rettangolari possono non coincidere con materiale.';
