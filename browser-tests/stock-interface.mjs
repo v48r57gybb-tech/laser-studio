@@ -21,6 +21,11 @@ try{
    await page.goto('http://127.0.0.1:4173',{waitUntil:'networkidle'});
    await page.selectOption('#partType','stock');
    await page.locator('#stockName').waitFor({state:'visible'});
+   assert.equal(await page.locator('#stockNewGeneration').count(),1);
+   assert(await page.locator('#stockNewGeneration').isVisible());
+   assert(await page.locator('#partType').evaluate(e=>e.nextElementSibling?.id==='stockRestartActions'));
+   const typeBox=await page.locator('#partType').boundingBox(),restartBox=await page.locator('#stockNewGeneration').boundingBox();
+   assert(typeBox&&restartBox&&restartBox.y>=typeBox.y+typeBox.height,'Nuova generazione deve stare sotto Tipo di pezzo');
    assert.equal(await page.inputValue('#stWidth'),'100');
    assert.equal(await page.inputValue('#stMargin'),'5');
    assert.equal(await page.locator('#stDiameter').isVisible(),false);
@@ -56,10 +61,13 @@ try{
    assert.equal(await page.locator('#stTools input[type=checkbox]').isChecked(),false);
    await page.selectOption('#partType','straight');
    assert(await page.locator('#form').isVisible());
+   assert.equal(await page.locator('#stockNewGeneration').isVisible(),false);
    await page.selectOption('#partType','arc');
    assert(await page.locator('#arcForm').isVisible());
+   assert.equal(await page.locator('#stockNewGeneration').isVisible(),false);
+   await page.selectOption('#partType','stock');assert(await page.locator('#stockNewGeneration').isVisible());
    assert.deepEqual(errors,[],'Errori JavaScript nel browser');
-   results.push({viewport,status:'superato',scope:'campi, utensili, generazione, archivio, reset e cambio modalità; non CNC, simulazione o collaudo completo Dritto/Arco'});
+   results.push({viewport,status:'superato',scope:'pulsante nuova generazione sotto tipo pezzo, visibilità per modalità, campi, utensili, generazione, archivio e reset; non collaudo CNC'});
   }catch(e){results.push({viewport,status:'fallito',error:e.stack,pageErrors:errors});}
   await page.screenshot({path:'browser-results/schermata-'+name+'.png',fullPage:true});
   await context.close();
