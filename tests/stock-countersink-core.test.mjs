@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {seatGeometry,checkPredrill,diskFits} from '../lib/stock-countersink-core.mjs';
+const spec={diameter:9,referenceDiameter:6.8,toolDiameter:10,angle:90,tipDiameter:0,height:20};
+test('90 gradi: quota punta e profondità anulare distinte',()=>{const s=seatGeometry(spec);assert(Math.abs(s.tipDepth-4.5)<1e-9);assert(Math.abs(s.annularDepth-1.1)<1e-9);});
+test('100 gradi e punta piana usano la geometria dichiarata',()=>{const s=seatGeometry({...spec,angle:100,tipDiameter:1});assert(Math.abs(s.tipDepth-4/Math.tan(50*Math.PI/180))<1e-9);});
+test('diametri e angoli incompatibili sono rifiutati',()=>{assert.throws(()=>seatGeometry({...spec,diameter:6}),/diametro sede/);assert.throws(()=>seatGeometry({...spec,diameter:11}),/diametro sede/);assert.throws(()=>seatGeometry({...spec,angle:118}),/90 o 100/);});
+test('il confronto ammette il cono nel preforo e rifiuta un foro corto',()=>{const s=seatGeometry(spec);checkPredrill(s,{holeDiameter:6.8,tipDepth:6,tipAngle:118,height:20});assert.throws(()=>checkPredrill(s,{holeDiameter:6.8,tipDepth:3,tipAngle:118,height:20}),/preforo insufficiente/);});
+test('uscita punta richiede spazio inferiore esplicito',()=>{assert.throws(()=>seatGeometry({...spec,height:3}),/confermare almeno/);const s=seatGeometry({...spec,height:3,lowerClearance:2,bottomClearanceConfirmed:true});assert(Math.abs(s.lowerClearanceRequired-1.5)<1e-9);});
+test('lamatura poco profonda non nasconde interferenze sotto il fondo',()=>{const s=seatGeometry({diameter:14,referenceDiameter:12,toolDiameter:16,angle:90,tipDiameter:0,height:20});assert.throws(()=>checkPredrill(s,{holeDiameter:6.8,tipDepth:10,tipAngle:118,height:20,counterbore:{diameter:12,depth:2}}),/preforo insufficiente/);checkPredrill(s,{holeDiameter:6.8,tipDepth:10,tipAngle:118,height:20,counterbore:{diameter:12,depth:6}});});
+test('contenimento della sede considera bordo e cavità del tubo',()=>{const g={finished:{radius:30,innerRadius:10},reference:{x:30,y:30}};assert(diskFits(g,{x:20,y:0},4));assert(!diskFits(g,{x:0,y:0},4));assert(!diskFits(g,{x:28,y:0},4));});
