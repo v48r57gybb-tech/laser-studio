@@ -1,16 +1,20 @@
 import {copyFile,mkdir,readFile,writeFile} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
+import assert from 'node:assert/strict';
 import {prepareStockUI} from './stock-ui-pipeline.mjs';
 import {fixPlacementCoordinates} from './stock-placement-fix.mjs';
 import {orientStockTriad} from './stock-origin-build.mjs';
 const files=['stock-ui.js','stock-sim.js','stock-preview.mjs','stock-placement.mjs','stock-feedback.mjs','stock-origin.mjs'];
-const libs=['stock-geometry-tools.mjs','stock-planning.mjs','stock-program.mjs','stock-workspace.mjs','stock-ui-model.mjs'];
+const libs=['stock-geometry-tools.mjs','stock-planning.mjs','stock-program.mjs','stock-workspace.mjs','stock-ui-model.mjs','stock-drilling-groups.mjs','stock-iso-groups.mjs'];
 await mkdir('dist/lib',{recursive:true});
 for(const f of files)await copyFile(f,'dist/'+f);
 for(const f of libs)await copyFile('lib/'+f,'dist/lib/'+f);
 await writeFile('dist/stock-placement.mjs',fixPlacementCoordinates(await readFile('dist/stock-placement.mjs','utf8')));
 await writeFile('dist/stock-preview.mjs',orientStockTriad(await readFile('dist/stock-preview.mjs','utf8')));
-const ui=prepareStockUI(await readFile('dist/stock-ui.js','utf8'));
+const baseUI=prepareStockUI(await readFile('dist/stock-ui.js','utf8'));
+const previousGenerator="import {generateProgram} from './lib/stock-program.mjs';";
+assert.equal(baseUI.split(previousGenerator).length,2,'Import generatore grezzo cambiato');
+const ui=baseUI.replace(previousGenerator,"import {generateGroupedProgram as generateProgram} from './lib/stock-iso-groups.mjs';");
 const layout=`
 const stockShapeGrid=document.getElementById('stType').closest('.grid');
 const stockAllowanceGrid=document.getElementById('st_xMinus').closest('.grid');
@@ -33,4 +37,4 @@ if(!html.includes('<script src="stock-sim.js"></script>'))html=html.replace('</b
 if(!html.includes('<script type="module" src="stock-ui.js"></script>'))html=html.replace('</body>','<script type="module" src="stock-ui.js"></script>\n</body>');
 await writeFile('dist/index.html',html);
 for(const f of [...files,...libs.map(l=>'lib/'+l)])if(!existsSync('dist/'+f))throw new Error('File build mancante: '+f);
-console.log('Interfaccia grezzo: dimensioni, sovramateriali, zero e vista 3D inclusi nella build.');
+console.log('Interfaccia grezzo e generazione ISO con gruppi compatibili inclusi nella build.');
