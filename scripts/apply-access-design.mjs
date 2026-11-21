@@ -17,3 +17,4 @@ console.log('Design ingresso applicato; sintassi verificata. Collaudo visivo bro
 await import('./apply-hero-polish.mjs');
 await import('./apply-access-first-paint.mjs');
 await import('./apply-single-hero.mjs');
+await import('./apply-compact-hero.mjs');
