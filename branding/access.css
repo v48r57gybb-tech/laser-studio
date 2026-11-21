@@ -1,33 +1,38 @@
-html.officina-locked body{box-sizing:border-box;margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:clamp(18px,4vw,48px);background:radial-gradient(ellipse at 12% 15%,#0b455455,transparent 55%),radial-gradient(ellipse at 90% 85%,#9c531c22,transparent 50%),#041323;color:#eaf7ff}
-html.officina-locked body::before{content:'';position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(#56dbed0a 1px,transparent 1px),linear-gradient(90deg,#56dbed0a 1px,transparent 1px);background-size:56px 56px;animation:access-grid 28s linear infinite}
-#officinaGate{box-sizing:border-box;position:relative;isolation:isolate;width:100%;max-width:760px!important;margin:auto!important;padding:clamp(24px,5vw,54px)!important;border:1px solid #64dce950;border-radius:28px;background:linear-gradient(145deg,#10374bf2,#071d30fa 75%);box-shadow:0 30px 90px #0007,0 0 60px #00dce90b,inset 0 1px 0 #bdefff24;animation:access-enter .65s cubic-bezier(.2,.8,.2,1) both}
+html.officina-locked body{box-sizing:border-box;margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;padding:clamp(18px,4vw,48px);background:radial-gradient(ellipse at 12% 15%,#08788e55,transparent 60%),radial-gradient(ellipse at 90% 85%,#c16b2438,transparent 55%),#041323;color:#f2fbff}
+html.officina-locked body::before{content:'';position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(#56dbed14 1px,transparent 1px),linear-gradient(90deg,#56dbed14 1px,transparent 1px);background-size:56px 56px;animation:access-grid 28s linear infinite}
+html.officina-locked body::after{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 25% 45%,#00dce925,transparent 55%),radial-gradient(ellipse at 80% 60%,#ff901a1c,transparent 50%);animation:access-aura 6s ease-in-out infinite alternate}
+#officinaGate{box-sizing:border-box;position:relative;z-index:1;isolation:isolate;width:100%;max-width:760px!important;margin:auto!important;padding:clamp(24px,5vw,54px)!important;border:1px solid #67eaffaa;border-radius:28px;background:linear-gradient(145deg,#104356f5,#071d30fc 75%);box-shadow:0 30px 90px #0009,0 0 28px #00dce94d,0 0 90px #00dce92b,18px 20px 80px #ff901a12,inset 0 1px 0 #c9faff66;animation:access-enter .65s cubic-bezier(.2,.8,.2,1) both}
 #officinaGate[hidden]{display:none!important}
-#officinaGate::before{content:'';position:absolute;top:-1px;left:15%;right:15%;height:2px;background:linear-gradient(90deg,transparent,#67ecff,#ffac57,transparent);box-shadow:0 0 22px #67ecff66;pointer-events:none;animation:access-glow 4s ease-in-out infinite alternate}
-#officinaGate h1{margin:0 0 30px;font-size:clamp(28px,5vw,46px);line-height:1.12;letter-spacing:-.035em;color:#f0fbff;text-wrap:balance}
-#officinaGate h1::after{content:'';display:block;width:64px;height:3px;margin-top:22px;border-radius:4px;background:linear-gradient(90deg,#51e2f5 65%,#ffab52 65%)}
-#officinaGate section[aria-label='Scegli accesso']{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
-#officinaGate section[aria-label='Scegli accesso'] h2{grid-column:1/-1;margin:0 0 4px;color:#a9c4d7;font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+#officinaGate::before{content:'';position:absolute;top:-2px;left:8%;right:8%;height:3px;background:linear-gradient(90deg,transparent,#67ecff 28%,#baf8ff 52%,#ffac57 78%,transparent);box-shadow:0 0 12px #67ecffcc,0 0 35px #67ecff99;pointer-events:none;animation:access-glow 4s ease-in-out infinite alternate}
+#officinaGate h1{margin:0 0 30px;font-size:clamp(30px,5vw,48px);font-weight:850;line-height:1.12;letter-spacing:-.035em;color:#f7fdff;text-wrap:balance;text-shadow:0 0 14px #7ceeff66,0 0 38px #00dce933}
+#officinaGate h1::after{content:'';display:block;width:96px;height:4px;margin-top:22px;border-radius:4px;background:linear-gradient(90deg,#70efff 65%,#ffb55e 65%);box-shadow:0 0 14px #51e2f5bb,0 0 30px #51e2f555}
+#officinaGate section[aria-label='Scegli accesso']{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+#officinaGate section[aria-label='Scegli accesso'] h2{grid-column:1/-1;margin:0 0 4px;color:#e0f5ff;font-size:14px;font-weight:750;letter-spacing:.16em;text-transform:uppercase;text-shadow:0 0 12px #67ecff55}
 #officinaGate button{font:inherit;cursor:pointer;transition:transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
-#officinaGate section[aria-label='Scegli accesso']>button{position:relative;min-width:0;min-height:112px;padding:24px 20px;border:1px solid #59d6e369;border-radius:18px;color:#f0fbff;background:linear-gradient(145deg,#0d5063aa,#0b2a40);font-size:clamp(16px,2.2vw,20px);font-weight:650;text-align:left;box-shadow:inset 0 1px 0 #ffffff12;overflow-wrap:anywhere}
-#officinaGate section[aria-label='Scegli accesso']>button::before{content:'01 /';display:block;margin-bottom:12px;font:12px ui-monospace,monospace;letter-spacing:.12em;color:#67ecff}
-#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2){border-color:#f6a04c69;background:linear-gradient(145deg,#633d244d,#10283c)}
-#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2)::before{content:'02 /';color:#ffc079}
-#officinaGate section[aria-label='Scegli accesso']>p{grid-column:1/-1;margin:8px 0 0;color:#bed0df;font-size:14px;line-height:1.7}
-#officinaGate button:focus-visible,#officinaGate input:focus-visible,#officinaGate summary:focus-visible{outline:3px solid #74eeff;outline-offset:4px}
+#officinaGate section[aria-label='Scegli accesso']>button{position:relative;min-width:0;min-height:116px;padding:24px 20px;border:2px solid #64efff;border-radius:18px;color:#f5fdff;background:linear-gradient(145deg,#11667c,#0a3047);font-size:clamp(17px,2.2vw,21px);font-weight:800;text-align:left;text-shadow:0 0 12px #8af3ff66;box-shadow:0 0 18px #00dce966,0 0 42px #00dce92e,inset 0 0 22px #00dce91a;overflow-wrap:anywhere}
+#officinaGate section[aria-label='Scegli accesso']>button::before{content:'01 /';display:block;margin-bottom:12px;font:700 12px ui-monospace,monospace;letter-spacing:.12em;color:#a7f7ff;text-shadow:0 0 10px #67ecff99}
+#officinaGate section[aria-label='Scegli accesso']>button::after{content:'';position:absolute;inset:0;pointer-events:none;border:1px solid #c4faff99;border-radius:inherit;box-shadow:inset 0 0 16px #67ecff55;animation:access-button-halo 4s ease-in-out infinite alternate}
+#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2){border-color:#ffb55e;background:linear-gradient(145deg,#614126,#192d40);text-shadow:0 0 12px #ffd29a55;box-shadow:0 0 18px #ff901a66,0 0 42px #ff901a2e,inset 0 0 22px #ff901a1a}
+#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2)::before{content:'02 /';color:#ffdbab;text-shadow:0 0 10px #ffac5799}
+#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2)::after{border-color:#ffe0b399;box-shadow:inset 0 0 16px #ffac5755;animation-delay:-2s}
+#officinaGate section[aria-label='Scegli accesso']>p{grid-column:1/-1;margin:10px 0 0;color:#e1f1ff;font-size:14px;font-weight:550;line-height:1.7}
+#officinaGate button:focus-visible,#officinaGate input:focus-visible,#officinaGate summary:focus-visible{outline:3px solid #c2f8ff;outline-offset:5px}
 #officinaGate button:active{transform:scale(.98)}
 #officinaGate button:disabled{cursor:wait;opacity:.55;transform:none}
-#officinaGate form{margin-top:26px;padding-top:22px;border-top:1px solid #82cce626;animation:access-enter .3s ease both}
-#officinaGate label{margin:0 0 16px;color:#d2e6f2;font-size:14px}
-#officinaGate input{box-sizing:border-box;width:100%;min-height:52px;margin-top:10px;padding:12px 15px;border:1px solid #6bb7cd77;border-radius:12px;background:#041626;color:#f0fbff;font:inherit}
-#officinaGate form>button{min-height:48px;padding:12px 24px;border:1px solid #69eaff88;border-radius:12px;background:#0c5264;color:#f0fbff;font-weight:650}
-#officinaGate details{margin-top:18px;font-size:13px;line-height:1.65;color:#a9c4d7}
+#officinaGate form{margin-top:26px;padding-top:22px;border-top:1px solid #82cce655;animation:access-enter .3s ease both}
+#officinaGate label{margin:0 0 16px;color:#e2f4ff;font-size:14px;font-weight:650}
+#officinaGate input{box-sizing:border-box;width:100%;min-height:52px;margin-top:10px;padding:12px 15px;border:1px solid #6bd7edaa;border-radius:12px;background:#041626;color:#f0fbff;font:inherit}
+#officinaGate form>button{min-height:48px;padding:12px 24px;border:1px solid #69eaff;border-radius:12px;background:#0c5264;color:#f0fbff;font-weight:750;box-shadow:0 0 18px #00dce933}
+#officinaGate details{margin-top:18px;font-size:13px;line-height:1.65;color:#bcd6e6}
 #officinaGate summary{cursor:pointer;width:fit-content;padding:4px 0}
-#officinaGate>button{margin:18px 10px 0 0;padding:9px 12px;border:1px solid #759cb34d;border-radius:10px;background:#0a2133;color:#bcd4e4;font-size:12px}
+#officinaGate>button{margin:18px 10px 0 0;padding:9px 12px;border:1px solid #759cb388;border-radius:10px;background:#0a2133;color:#d2e7f5;font-size:12px}
 #officinaAccessStatus:empty{display:none}
-#officinaAccessStatus:not(:empty){margin:22px 0 0;padding:14px;border:1px solid #ffb56355;border-radius:12px;background:#4d301b33;color:#ffe0b6;line-height:1.6}
-@media(hover:hover){#officinaGate section[aria-label='Scegli accesso']>button:hover:not(:disabled){transform:translateY(-3px);border-color:#8defff;box-shadow:0 10px 30px #00dce91a}#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2):hover:not(:disabled){border-color:#ffc079;box-shadow:0 10px 30px #ff901a18}}
-@media(max-width:520px){#officinaGate{border-radius:22px}#officinaGate section[aria-label='Scegli accesso']{grid-template-columns:minmax(0,1fr);gap:12px}#officinaGate section[aria-label='Scegli accesso']>button{min-height:88px;padding:18px 20px}#officinaGate h1{margin-bottom:24px}}
+#officinaAccessStatus:not(:empty){margin:22px 0 0;padding:14px;border:1px solid #ffb56388;border-radius:12px;background:#4d301b55;color:#ffe0b6;line-height:1.6}
+@media(hover:hover){#officinaGate section[aria-label='Scegli accesso']>button:hover:not(:disabled){transform:translateY(-3px);border-color:#c4faff;box-shadow:0 0 26px #00dce999,0 12px 65px #00dce94d,inset 0 0 25px #00dce92b}#officinaGate section[aria-label='Scegli accesso']>button:nth-of-type(2):hover:not(:disabled){border-color:#ffe0b3;box-shadow:0 0 26px #ff901a99,0 12px 65px #ff901a4d,inset 0 0 25px #ff901a2b}}
+@media(max-width:520px){#officinaGate{border-radius:22px}#officinaGate section[aria-label='Scegli accesso']{grid-template-columns:minmax(0,1fr);gap:14px}#officinaGate section[aria-label='Scegli accesso']>button{min-height:92px;padding:18px 20px}#officinaGate h1{margin-bottom:24px}}
 @keyframes access-enter{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @keyframes access-grid{to{background-position:56px 56px}}
-@keyframes access-glow{from{opacity:.45}to{opacity:1}}
-@media(prefers-reduced-motion:reduce){html.officina-locked body::before,#officinaGate,#officinaGate::before,#officinaGate form{animation:none!important}#officinaGate button{transition:none!important}}
+@keyframes access-glow{from{opacity:.65}to{opacity:1}}
+@keyframes access-aura{from{opacity:.5}to{opacity:1}}
+@keyframes access-button-halo{from{opacity:.35}to{opacity:.85}}
+@media(prefers-reduced-motion:reduce){html.officina-locked body::before,html.officina-locked body::after,#officinaGate,#officinaGate::before,#officinaGate form,#officinaGate section[aria-label='Scegli accesso']>button::after{animation:none!important}#officinaGate button{transition:none!important}}
