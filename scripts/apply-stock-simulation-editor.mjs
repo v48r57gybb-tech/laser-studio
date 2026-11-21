@@ -14,3 +14,4 @@ for(const [w,h]of [[1280,800],[768,1024],[390,844],[320,480],[1920,1080]])for(co
 assert(sim.includes("onPause:()=>{playing=false;resetMotionClock();}"));assert(sim.includes("footer.append(seek.closest('label'),status)"));assert(sim.includes('scene.append(actions,frame)'));await writeFile('dist/stock-sim.js',sim);
 console.log('PASS editor: sintassi, limiti finestra e otto direzioni di ridimensionamento su desktop/tablet/mobile; controlli originali spostati senza clonazione; pausa e chiusura collegate. Trascinamento, fullscreen, registrazione e layout richiedono verifica browser.');
 await import('./apply-stock-editor-controls.mjs');
+await import('./apply-stock-card-consistency.mjs');
