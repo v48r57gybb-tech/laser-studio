@@ -15,3 +15,4 @@ sim=runtime+'\n'+sim;
 const check=spawnSync(process.execPath,['--input-type=module','--check'],{input:sim,encoding:'utf8'});assert.equal(check.status,0,check.stderr);
 const tests=spawnSync(process.execPath,['tests/stock-simulation-save.mjs'],{encoding:'utf8'});assert.equal(tests.status,0,tests.stdout+'\n'+tests.stderr);
 await writeFile('dist/stock-sim.js',sim);process.stdout.write(tests.stdout);
+await import('./apply-stock-simulation-refinements.mjs');
