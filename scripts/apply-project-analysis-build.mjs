@@ -1,0 +1,16 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+import {parseProject,serializeProject} from '../project-analysis.js';
+const p={format:'officina-smart-cnc-project-analysis',schema_version:'0.2-draft',review_status:'unreviewed',execution_authorized:false,sources:[{id:'S1',filename:'test.pdf',revision:null,reading_limits:[]}],part:{code:'TEST',revision:null,units:'mm',notes:[]},requirements:[{id:'R1',source_ids:['S1'],locator:'p1',original_text:'Esempio non produttivo',values:{},review_status:'unreviewed'}],features:[{id:'F1',kind:'hole',description:'Esempio',requirement_ids:['R1'],frame_id:null,values:{},support_status:'not_checked'}],proposals:[{id:'SETUP01',description:'Da confermare',requirement_ids:['R1'],feature_ids:['F1'],depends_on:[],status:'proposed'}],coverage:[{requirement_id:'R1',feature_ids:['F1'],proposal_ids:['SETUP01'],status:'needs_inspection',reason:'Test'}],open_issues:[]};
+const round=parseProject(JSON.stringify(p));round.setup_choices.push({proposal_id:'SETUP01',xy:'center',z:'finished_top',reference:'finished',notes:'Da confermare'});assert.deepEqual(parseProject(serializeProject(round)),round);
+const reject=change=>{const copy=structuredClone(p);change(copy);assert.throws(()=>parseProject(JSON.stringify(copy)));};
+reject(x=>x.execution_authorized=true);reject(x=>x.schema_version='unknown');reject(x=>x.features[0].requirement_ids=['NO']);reject(x=>x.features[0].id='S1');reject(x=>x.coverage=[]);reject(x=>x.proposals[0].depends_on=['SETUP01']);reject(x=>x.extra='no');reject(x=>x.part.units='meters');reject(x=>x.features[0].values={depth:{value:1e300*1e300,unit:'mm',status:'letto',source_ids:[],method:null,input_ids:[]}});
+assert.throws(()=>parseProject('{broken'));assert.throws(()=>parseProject(' '.repeat(2*1024*1024+1)));assert.throws(()=>parseProject(JSON.stringify({...p,part:{...p.part,constructor:'no'}})));
+const cyclic=structuredClone(p);cyclic.proposals.push({...cyclic.proposals[0],id:'OP01',depends_on:['SETUP01']});cyclic.proposals[0].depends_on=['OP01'];assert.throws(()=>parseProject(JSON.stringify(cyclic)));
+const choice=structuredClone(round);choice.setup_choices[0].xy='invented';assert.throws(()=>serializeProject(choice));
+const safe=structuredClone(p);safe.features[0].description='<img src=x onerror=alert(1)>';assert.equal(parseProject(JSON.stringify(safe)).analysis.features[0].description,safe.features[0].description);
+const checked=spawnSync(process.execPath,['--check','project-analysis.js'],{encoding:'utf8'});assert.equal(checked.status,0,checked.stderr);
+assert.equal(await readFile('dist/project-analysis.js','utf8'),await readFile('project-analysis.js','utf8'),'Modulo anteprima non copiato correttamente');
+let html=await readFile('dist/index.html','utf8');assert.equal(html.split('</body>').length,2);assert(!html.includes('src="project-analysis.js"'));html=html.replace('</body>','<script type="module" src="project-analysis.js"></script>\n</body>');await writeFile('dist/index.html',html);
+console.log('PASS progetto: struttura e riferimenti, copertura, cicli, origine proposta, round-trip, limiti e versione. Nessuna generazione ISO/STEP e nessun salvataggio persistente. Browser da collaudare.');

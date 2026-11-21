@@ -26,3 +26,4 @@ html=html.replace('</body>','<script src="interface-presentation.js"></script>\n
 await writeFile('dist/index.html',html);
 await import('./finalize-arc-ui.mjs');
 console.log('Icone, manifest e interfaccia generati. Nessuna modifica ai calcoli CNC.');
+await import('./apply-project-analysis-build.mjs');
