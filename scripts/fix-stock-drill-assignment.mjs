@@ -14,7 +14,10 @@ const broken='const x="line one'+String.fromCharCode(10)+'line two";';
 check(normalizeQuotedNewlines(broken),'Test normalizzazione stringa');
 const template='const x=`line one'+String.fromCharCode(10)+'line two`;';assert.equal(normalizeQuotedNewlines(template),template);
 const integrationPath=new URL('./apply-stock-linked-holes.mjs',import.meta.url);
-const original=await readFile(integrationPath,'utf8'),integration=normalizeQuotedNewlines(original);
+const original=await readFile(integrationPath,'utf8');let integration=normalizeQuotedNewlines(original);
+function updateTest(a,b){assert.equal(integration.split(a).length,2,'Fixture test cambiata: '+a);integration=integration.replace(a,b);}
+updateTest('const p=createProject();p.tools.push', 'const p=createProject();p.geometry.finished.height=50;p.tools.push');
+updateTest("p.operations[0].parameters.mode='through';syncLinked(p);assert.equal(p.operations[1].parameters.depth,20);","const boundary=structuredClone(p);boundary.operations[0].parameters.depth=50;assert.throws(()=>syncLinked(boundary),/Foro cieco oltre fondo/);p.operations[0].parameters.mode='through';p.operations[0].parameters.depth=60;syncLinked(p);assert.equal(p.operations[1].parameters.depth,60);");
 check(integration,'Integrazione lavorazioni collegate');
 await writeFile(path,code);
 if(integration!==original)await writeFile(integrationPath,integration);
