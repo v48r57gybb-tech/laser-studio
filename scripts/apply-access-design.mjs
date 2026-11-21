@@ -14,3 +14,4 @@ assert.equal(checked.status,0,checked.stderr);
 assert.equal(next.slice(0,original.length),original,'Login, archivio e timer devono restare invariati');
 await writeFile(path,next);
 console.log('Design ingresso applicato; sintassi verificata. Collaudo visivo browser necessario.');
+await import('./apply-hero-polish.mjs');
