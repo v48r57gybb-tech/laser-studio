@@ -2,6 +2,35 @@ import {DRILL_STORE,smartParameters,peckEstimate,outsideHoles} from './lib/stock
 import {resolveGeometry,assignDrill} from './lib/stock-geometry-tools.mjs';
 import {drillingPoints} from './lib/stock-drilling-groups.mjs';
 const advancedState=new Map();
+const TAP_TABLE=[
+ {drill:6.8,thread:'M8',pitch:1.25,kind:'cut'},
+ {drill:7.4,thread:'M8',pitch:1.25,kind:'form'},
+ {drill:2.5,thread:'M3',pitch:0.5,kind:'cut'},
+ {drill:2.8,thread:'M3',pitch:0.5,kind:'form'},
+ {drill:3.3,thread:'M4',pitch:0.7,kind:'cut'},
+ {drill:3.7,thread:'M4',pitch:0.7,kind:'form'},
+ {drill:4.2,thread:'M5',pitch:0.8,kind:'cut'},
+ {drill:4.6,thread:'M5',pitch:0.8,kind:'form'},
+ {drill:5.0,thread:'M6',pitch:1.0,kind:'cut'},
+ {drill:5.5,thread:'M6',pitch:1.0,kind:'form'},
+ {drill:8.5,thread:'M10',pitch:1.5,kind:'cut'},
+ {drill:9.3,thread:'M10',pitch:1.5,kind:'form'},
+ {drill:10.2,thread:'M12',pitch:1.75,kind:'cut'},
+ {drill:11.2,thread:'M12',pitch:1.75,kind:'form'}
+];
+function matchTap(drillDia){return TAP_TABLE.find(t=>Math.abs(t.drill-drillDia)<0.15);}
+function allocStation(proj,kind,diameter){
+ const existing=proj.tools.find(t=>t.kind===kind&&Math.abs(t.diameter-diameter)<0.01);
+ if(existing)return existing;
+ const used=new Set(proj.tools.map(t=>t.station));
+ let station=null;
+ const candidates=kind==='chamfer'?[9,10,26,27]:[21,22,23,24,25];
+ for(const s of candidates){if(!used.has(s)){station=s;break;}}
+ if(!station)for(let s=1;s<=28;s++){if(!used.has(s)){station=s;break;}}
+ const tool={id:'tool-'+station,station,kind,diameter,loaded:false,parameters:{rpm:kind==='chamfer'?3000:500,feed:kind==='chamfer'?300:625,entryFeed:kind==='chamfer'?100:625,coolant:'M8'}};
+ proj.tools.push(tool);
+ return tool;
+}
 export function enhanceSmartDrilling(box,op,{getProject,changed,form}){if(op.type!=='drilling')return;const card=box.closest('details'),fields=new Map([...box.querySelectorAll('[data-operation-field]')].map(i=>[i.dataset.operationField,i])),current=()=>getProject().operations.find(o=>o.id===op.id),v=current().parameters,tool=()=>getProject().tools.find(t=>t.id===current().toolId);
 const note=document.createElement('p');note.setAttribute('aria-live','polite');note.className='notice';box.append(note);function fail(e){note.textContent=e.message;note.className='notice error';}
 function update(fn){try{const open=card.open;advancedState.set(op.id,advanced.open);fn(current().parameters);changed();const next=[...form.querySelectorAll('.stock-op')].find(c=>c.dataset.operationId===op.id);if(next)next.open=open;}catch(e){fail(e);}}
@@ -19,5 +48,11 @@ if(pattern==='points'){const points=Array.isArray(v.points)&&v.points.length?v.p
 field('Profondità del foro',depth,(p,x)=>{p.smartDepth=x;if(x==='blind')p.mode='blind';if(x==='piece')p.mode='through';},[['blind','Cieco: profondità dalla faccia finita Z0'],['piece','Passante: spessore pezzo + uscita punta'],['z','Quota Z finale manuale']]);show('depth',depth==='blind');show('mode',depth==='z');show('breakthroughConfirmed',depth==='piece'||v.mode==='through');if(depth==='piece'){field('Uscita aggiuntiva della punta (mm)',v.smartExit,(p,x)=>p.smartExit=x);const t=tool();if(t.tipAngle>0&&t.tipAngle<180){const b=document.createElement('button');b.type='button';b.textContent='Usa lunghezza geometrica del cono punta';b.onclick=()=>update(p=>p.smartExit=t.diameter/2/Math.tan(t.tipAngle*Math.PI/360));box.insertBefore(b,note);}}if(depth==='z')field('Z finale rispetto alla faccia finita Z0 (mm)',-v.depth,(p,x)=>{if(x>=0)throw Error('Inserire una quota Z negativa');p.depth=-x;});
 show('q',v.cycle==='G83'||v.cycle==='G73');const q=fields.get('q');if(q){q.value=v.q??'';q.required=v.cycle==='G83'||v.cycle==='G73';q.min='.0001';q.title='Incremento di ogni affondo. Il conteggio nominale è calcolato da R a Z.';}
 const t=tool();for(const [key,label]of [['rpm','S punta (giri/min)'],['feed','F punta (mm/min)']])field(label,t.parameters[key],(_p,x)=>{if(x<=0||key==='rpm'&&!Number.isInteger(x))throw Error('Parametro punta non valido');tool().parameters[key]=x;});const shared=document.createElement('p');shared.textContent='S e F appartengono alla punta selezionata: valgono anche per le altre lavorazioni che usano lo stesso utensile. Valori iniziali non validati per materiale o macchina.';box.insertBefore(shared,note);const save=document.createElement('button');save.type='button';save.textContent='Memorizza S/F per questa punta';save.onclick=()=>{try{const t=tool();if(!(t.parameters.rpm>0&&Number.isInteger(t.parameters.rpm)&&t.parameters.feed>0))throw Error('Completare S e F validi');let saved={};try{saved=JSON.parse(localStorage.getItem(DRILL_STORE)||'{}')||{};}catch{}saved['drill-'+t.diameter]={rpm:t.parameters.rpm,feed:t.parameters.feed};localStorage.setItem(DRILL_STORE,JSON.stringify(saved));note.textContent='S/F memorizzati per le nuove punte dello stesso diametro. Impostazioni esistenti preservate.';}catch(e){fail(e);}};box.insertBefore(save,note);
+const autoBox=document.createElement('fieldset');autoBox.style.cssText='border:1px dashed #7194ab;border-radius:8px;padding:10px;margin:12px 0;background:#0d283c';const autoLegend=document.createElement('legend');autoLegend.textContent='Automazione fori: svasatura e maschiatura';autoBox.append(autoLegend);
+const drillDia=t.diameter??6.8,matched=matchTap(drillDia);
+const chamferRow=document.createElement('div');chamferRow.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:8px';const chamferBtn=document.createElement('button');chamferBtn.type='button';chamferBtn.textContent='➕ Aggiungi Svasatura su questi fori';const chamferAngle=document.createElement('select');chamferAngle.add(new Option('Svasatore 90°','90'));chamferAngle.add(new Option('Svasatore 100°','100'));chamferRow.append(chamferBtn,chamferAngle);autoBox.append(chamferRow);
+chamferBtn.onclick=()=>{try{const proj=getProject(),angle=Number(chamferAngle.value),sw=allocStation(proj,'chamfer',10),idx=proj.operations.findIndex(o=>o.id===op.id);const chamferOp={id:'op-'+crypto.randomUUID(),type:'drilling',enabled:true,toolId:sw.id,parameters:{...structuredClone(current().parameters),depth:1.5,cycle:'G82',q:null,mode:'blind',smartDepth:'blind'}};proj.operations.splice(idx+1,0,chamferOp);changed();note.textContent=`Svasatura (${angle}°) aggiunta con T${sw.station} Ø${sw.diameter}`;note.className='notice';}catch(e){fail(e);}};
+if(matched){const tapRow=document.createElement('div');tapRow.style.cssText='display:flex;align-items:center;gap:10px';const tapBtn=document.createElement('button');tapBtn.type='button';tapBtn.textContent=`➕ Aggiungi Maschiatura ${matched.thread} (${matched.kind==='cut'?'asporto':'rullare'})`;tapRow.append(tapBtn);autoBox.append(tapRow);tapBtn.onclick=()=>{try{const proj=getProject(),dNom=Number(matched.thread.slice(1)),pitch=matched.pitch,tapTool=allocStation(proj,'mill',dNom),idx=proj.operations.findIndex(o=>o.id===op.id);const s=500,f=Math.round(s*pitch);tapTool.parameters={rpm:s,feed:f,entryFeed:f,coolant:'M8'};const tapDepth=Math.max(1,Number(current().parameters.depth??10)-2*pitch);const tapOp={id:'op-'+crypto.randomUUID(),type:'drilling',enabled:true,toolId:tapTool.id,parameters:{...structuredClone(current().parameters),depth:tapDepth,cycle:'G84',q:null,mode:'blind',smartDepth:'blind'}};proj.operations.splice(idx+1,0,tapOp);changed();note.textContent=`Maschiatura ${matched.thread} (passo ${pitch} mm, S${s} F${f}) aggiunta con T${tapTool.station}`;note.className='notice';}catch(e){fail(e);}};}
+box.insertBefore(autoBox,note);
 try{const p=getProject(),g=resolveGeometry(p.geometry),resolved=smartParameters(p,current(),g),points=drillingPoints(resolved),pecks=peckEstimate(resolved),bad=outsideHoles(g,points,t.diameter/2);note.textContent=points.length+' fori · Z'+Number((-resolved.depth).toFixed(4))+' · '+resolved.cycle+' · '+pecks.count+' affondi nominali per foro da R a Z · ultimo incremento '+Number(pecks.last.toFixed(4))+' mm. '+(bad.length?bad.length+' fori oltre il profilo finito o dentro un vuoto. ':'')+((depth==='piece'||v.mode==='through')&&v.breakthroughConfirmed!==true?'Verificare e confermare uscita punta e spazio sotto il pezzo. ':'')+'Stima software: verificare il comportamento del ciclo sul controllo macchina.';if(bad.length)note.className='notice error';const title=card.querySelector('summary .stock-operation-title');if(title)title.textContent+=' · '+points.length+' fori · '+resolved.cycle+' · Z'+Number((-resolved.depth).toFixed(3));}catch(e){fail(e);}
 }
