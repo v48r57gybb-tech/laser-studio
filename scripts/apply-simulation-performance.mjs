@@ -12,15 +12,18 @@ async function patch(file,rules){
 }
 await patch('dist/cnc-simulator.js',[
  {find:'progress\\+=dt\\*Number\\(speed\\.value\\)\\/[^;]+;',replacement:`const duration=op.dwell>0?op.dwell:(op.type==='rapid'?60*op.distance/10000:60*op.distance/Math.max(1,op.feed||200));\n    if(duration>0)progress+=dt*Number(speed.value)/duration;else progress=1;`},
- {find:'max="32" step="0\\.25" value="1"',replacement:'max="128" step="0.25" value="1"'}
+ {find:'max="32" step="0\\.25" value="1"',replacement:'max="128" step="0.25" value="1"'},
+ {find:'while\\(progress>=1&&playing\\)\\{',replacement:'let advanceGuard=0;while(progress>=1&&playing&&advanceGuard++<5000){'}
 ]);
 await patch('dist/stock-sim.js',[
  {find:'max="32" step="0\\.25" value="1"',replacement:'max="128" step="0.25" value="1"'},
- {find:'const cell=Math\\.max\\(0\\.5,Math\\.min\\(w,d\\)\\/160\\);',replacement:'const cell=Math.max(1,Math.min(w,d)/120);',required:false}
+ {find:'const cell=Math\\.max\\(0\\.5,Math\\.min\\(w,d\\)\\/160\\);',replacement:'const cell=Math.max(1,Math.min(w,d)/120);',required:false},
+ {find:'motionDebt=next\\.remaining;',replacement:'motionDebt=Math.min(next.remaining,0.25);'},
+ {find:'rapidFeed:rapidNominalFeed,onAdvance:',replacement:'rapidFeed:rapidNominalFeed,maxSteps:400,onAdvance:'}
 ]);
 for(const file of ['dist/cnc-simulator.js','dist/stock-sim.js']){
  const check=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
  if(check.status!==0)errors.push(file+': '+(check.stderr||check.error?.message));
 }
 if(errors.length)throw Error('Prestazioni simulazione: '+errors.length+' problemi\n'+errors.join('\n'));
-console.log('Simulazione: tempi da F per pz diritto/curvo, velocità fino a 128×, griglia grezzo più leggera e ordine di disegno in cache.');
+console.log('Simulazione: tempi da F, velocità 128×, debito limitato, rimozione a budget e avanzamento protetto.');
