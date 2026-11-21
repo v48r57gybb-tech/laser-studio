@@ -1,0 +1,16 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const path='dist/local-access.js';
+const original=await readFile(path,'utf8');
+assert(original.includes('Simplified local activation;'),'Applicare prima il primo accesso semplificato');
+assert(original.includes('Visitatore · prova 5 minuti'),'Durata visitatore non riconosciuta');
+assert(!original.includes('officinaAccessDesign'),'Design accesso già applicato');
+const css=await readFile('branding/access.css','utf8');
+const runtime=await readFile('access-presentation.js','utf8');
+const next=original+'\n{const accessStyles='+JSON.stringify(css)+';\n'+runtime+'\n}\n';
+const checked=spawnSync(process.execPath,['--input-type=module','--check'],{input:next,encoding:'utf8'});
+assert.equal(checked.status,0,checked.stderr);
+assert.equal(next.slice(0,original.length),original,'Login, archivio e timer devono restare invariati');
+await writeFile(path,next);
+console.log('Design ingresso applicato; sintassi verificata. Collaudo visivo browser necessario.');
