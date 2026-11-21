@@ -13,7 +13,7 @@ const addition=String.raw`
   choices.setAttribute('aria-label','Scegli accesso');
   const heading=document.createElement('h2');heading.textContent='Scegli come entrare';
   const admin=document.createElement('button');admin.type='button';admin.textContent='Amministratore';
-  const visitor=document.createElement('button');visitor.type='button';visitor.textContent='Visitatore · prova 10 secondi';
+  const visitor=document.createElement('button');visitor.type='button';visitor.textContent='Visitatore · prova 5 minuti';
   const info=document.createElement('p');info.textContent='Amministratore: password locale esistente, nessun timer. Visitatore: prova temporanea senza archivio personale. Il limite è solo dimostrativo e può essere aggirato.';
   const recovery=[document.getElementById('officinaBackup'),document.getElementById('officinaRestore')];
   choices.append(heading,admin,visitor,info);gate.insertBefore(choices,form);
@@ -64,7 +64,7 @@ const addition=String.raw`
       const label=document.createElement('span');label.setAttribute('role','timer');
       const leave=document.createElement('button');leave.type='button';leave.textContent='Esci dalla prova';leave.onclick=finishGuest;
       bar.append(label,leave);document.body.prepend(bar);
-      guestClock={wall:Date.now()+10000,mono:performance.now()+10000,label};
+      guestClock={wall:Date.now()+300000,mono:performance.now()+300000,label};
       checkGuestTime();guestTimer=setInterval(checkGuestTime,100);
       gate.hidden=true;document.documentElement.classList.remove('officina-locked');
       window.dispatchEvent(new Event('resize'));
