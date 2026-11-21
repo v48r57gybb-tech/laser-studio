@@ -23,13 +23,22 @@ function removeDisk(grid,x,y,z,r,tool){
  for(let j=Math.max(0,Math.floor((y-r-y0)/cell));j<=Math.min(ny-1,Math.ceil((y+r-y0)/cell));j++)for(let i=Math.max(0,Math.floor((x-r-x0)/cell));i<=Math.min(nx-1,Math.ceil((x+r-x0)/cell));i++){const k=j*nx+i;if(voidMask[k])continue;const d=Math.hypot(x0+(i+.5)*cell-x,y0+(j+.5)*cell-y);if(d>r)continue;let target=z;if(tool?.kind==='chamfer'){const a=(tool.angle||90)*Math.PI/360;target=z+Math.max(0,d-(tool.tipDiameter||0)/2)/Math.tan(a);if(target-z>(tool.fluteLength||0))continue;}h[k]=Math.min(h[k],Math.max(z0,target));}
 }
 function drawStock({grid,quad,top,yaw}){
- const {x0,y0,z0,cell,nx,ny,h,voidMask}=grid,tiles=[];
+ const {x0,y0,z0,cell,nx,ny,h,voidMask}=grid;
  const height=(i,j)=>i<0||j<0||i>=nx||j>=ny||voidMask[j*nx+i]?z0:h[j*nx+i];
- for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)if(!voidMask[j*nx+i]&&h[j*nx+i]>z0+1e-5)tiles.push({i,j,depth:(x0+i*cell)*Math.sin(yaw)+(y0+j*cell)*Math.cos(yaw)});
- if(!top)tiles.sort((a,b)=>a.depth-b.depth);
- for(const {i,j}of tiles){const x=x0+i*cell,y=y0+j*cell,z=h[j*nx+i],x1=x+cell,y1=y+cell;
+ let tiles=grid._drawTiles;
+ if(!tiles||grid._drawYaw!==yaw){
+  tiles=[];grid._drawTiles=tiles;grid._drawYaw=yaw;
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)if(!voidMask[j*nx+i])tiles.push({i,j,depth:(x0+i*cell)*Math.sin(yaw)+(y0+j*cell)*Math.cos(yaw)});
+  if(!top)tiles.sort((a,b)=>a.depth-b.depth);
+ }
+ const zRange=Math.max(0.001,grid.z1-z0);
+ for(const tile of tiles){
+  const i=tile.i,j=tile.j,k=j*nx+i,z=h[k];
+  if(z<=z0+1e-5)continue;
+  const x=x0+i*cell,y=y0+j*cell,x1=x+cell,y1=y+cell;
   if(!top){const sx=Math.sin(yaw)>=0?1:-1,sy=Math.cos(yaw)>=0?1:-1,xx=sx>0?x1:x,yy=sy>0?y1:y,bx=height(i+sx,j),by=height(i,j+sy);if(bx<z-1e-5)quad({x:xx,y,z:bx},{x:xx,y:y1,z:bx},{x:xx,y:y1,z},{x:xx,y,z},'#54788c');if(by<z-1e-5)quad({x,y:yy,z:by},{x:x1,y:yy,z:by},{x:x1,y:yy,z},{x,y:yy,z},'#7294a5');}
-  quad({x,y,z},{x:x1,y,z},{x:x1,y:y1,z},{x,y:y1,z},'#c6ad78');
+  const shade=Math.max(0,Math.min(255,Math.round(40+180*((z-z0)/zRange))));
+  quad({x,y,z},{x:x1,y,z},{x:x1,y:y1,z},{x,y:y1,z},`rgb(${shade},${Math.round(shade*.8)},${Math.round(shade*.5)})`);
  }
 }
 root.StockContourRemoval={compensate,removeDisk,drawStock};
