@@ -1,0 +1,30 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const path='dist/stock-smart-drilling-ui.mjs';
+let code=await readFile(path,'utf8');
+const before='current().toolId=assigned.toolId;const t=proj.tools.find(x=>x.id===assigned.toolId);';
+const after="const assignedTool=assigned.project.tools.find(x=>x.id===assigned.toolId);if(!assignedTool)throw Error('Punta creata non disponibile: assegnazione annullata');if(!proj.tools.some(x=>x.id===assigned.toolId))proj.tools.push(structuredClone(assignedTool));current().toolId=assigned.toolId;const t=proj.tools.find(x=>x.id===assigned.toolId);";
+assert.equal(code.split(before).length,2,'Cambio diametro: punto di integrazione cambiato');
+code=code.replace(before,after);
+const syntax=spawnSync(process.execPath,['--input-type=module','--check'],{input:code,encoding:'utf8'});
+assert.equal(syntax.status,0,syntax.stderr);
+const {createProject,validateProject}=await import('../dist/lib/stock-workspace.mjs');
+const {assignDrill}=await import('../dist/lib/stock-geometry-tools.mjs');
+const project=createProject();
+const first=assignDrill(project,6.8);project.tools=first.project.tools;
+project.operations=[{id:'diameter-test',type:'drilling',enabled:true,toolId:first.toolId,parameters:{}}];
+const originalId=first.toolId;
+for(const diameter of [7.4,8,6.8,7.4]){
+ const assigned=assignDrill(project,diameter);
+ const assignedTool=assigned.project.tools.find(x=>x.id===assigned.toolId);
+ assert(assignedTool);
+ if(!project.tools.some(x=>x.id===assigned.toolId))project.tools.push(structuredClone(assignedTool));
+ project.operations[0].toolId=assigned.toolId;
+ validateProject(project);
+ assert.equal(project.tools.find(t=>t.id===assigned.toolId).diameter,diameter);
+ assert.equal(project.tools.find(t=>t.id===originalId).diameter,6.8);
+}
+assert.equal(project.tools.filter(t=>t.kind==='drill'&&t.diameter===7.4).length,1);
+await writeFile(path,code);
+console.log('Cambio diametro: riferimenti validi per 6.8 / 7.4 / 8 mm, riuso punta esistente e diametri precedenti preservati. Nessuna prova browser o macchina.');
