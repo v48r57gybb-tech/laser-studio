@@ -1,5 +1,7 @@
 import { mkdir, readdir, readFile, writeFile, cp } from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
 import sharp from 'sharp';
+for(const args of [['--check','interface-presentation.js'],['tests/interface-presentation-unit.mjs']]){const r=spawnSync(process.execPath,args,{encoding:'utf8'});if(r.error||r.status!==0)throw Error('Presentazione: '+(r.error?.message??r.stdout+'\n'+r.stderr));process.stdout.write(r.stdout);}
 await mkdir('dist/icons', {recursive:true});
 for (const e of await readdir('.', {withFileTypes:true})) {
  if (e.isFile() && /\.(html|js|css|webmanifest)$/.test(e.name)) await cp(e.name, 'dist/' + e.name);
@@ -19,6 +21,8 @@ if(!/<header>[\s\S]*?<\/header>/.test(html)) throw new Error('Intestazione non r
 html = html.replace(/<header>[\s\S]*?<\/header>/, header);
 html = html.replace('</head>', '<style>' + css + '</style>\n</head>');
 html = html.replace('<title>Generatore ISO · Officina Smart</title>', '<title>Officina Smart CNC · Generatore ISO</title>');
+if(html.split('</body>').length!==2)throw Error('Presentazione: chiusura body non univoca');
+html=html.replace('</body>','<script src="interface-presentation.js"></script>\n</body>');
 await writeFile('dist/index.html',html);
 await import('./finalize-arc-ui.mjs');
 console.log('Icone, manifest e interfaccia generati. Nessuna modifica ai calcoli CNC.');
