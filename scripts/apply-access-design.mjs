@@ -15,3 +15,4 @@ assert.equal(next.slice(0,original.length),original,'Login, archivio e timer dev
 await writeFile(path,next);
 console.log('Design ingresso applicato; sintassi verificata. Collaudo visivo browser necessario.');
 await import('./apply-hero-polish.mjs');
+await import('./apply-access-first-paint.mjs');
