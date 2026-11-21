@@ -15,3 +15,4 @@ assert(sim.includes("onPause:()=>{playing=false;resetMotionClock();}"));assert(s
 console.log('PASS editor: sintassi, limiti finestra e otto direzioni di ridimensionamento su desktop/tablet/mobile; controlli originali spostati senza clonazione; pausa e chiusura collegate. Trascinamento, fullscreen, registrazione e layout richiedono verifica browser.');
 await import('./apply-stock-editor-controls.mjs');
 await import('./apply-stock-card-consistency.mjs');
+await import('./apply-stock-toolbar-layout.mjs');
