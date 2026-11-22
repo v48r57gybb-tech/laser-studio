@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {suggestFamilies,prepareAutomaticTools} from '../lib/project-tool-automation.mjs';
+const nominal=p=>{for(const t of p.tools)if(['mill','face'].includes(t.kind)&&t.parameters.rpm===null)Object.assign(t.parameters,{rpm:2200,feed:1850,entryFeed:100});return p};
+const make=()=>({tools:[]});
+const request=(extra={})=>({operationId:'OP002',operationType:'facing',family:'face',diameter:50,...extra});
+const run=(p,r)=>prepareAutomaticTools(p,r,{applyNominalTools:nominal});
+test('reads recommendation section only',()=>{const p={id:'OP002',description:'Foratura nel titolo\n\nCaratteristiche e categoria di utensile: F001. Fresa a spianare.\n\nRequisiti geometrici: punta 4'};assert.deepEqual(suggestFamilies(p).families,[{family:'face',supported:true}])});
+test('no mutation, deduplication and idempotence',()=>{const p=make(),before=JSON.stringify(p),a=run(p,[request(),request({operationId:'OP007'})]);assert.equal(JSON.stringify(p),before);assert.equal(a.project.tools.length,1);assert.equal(run(a.project,[request()]).project.tools.length,1)});
+test('mounting does not alter library geometry',()=>{const a=run(make(),[request({depth:40}),request({depth:2})]);assert.equal(a.project.tools.length,1);assert.equal(a.assignments[0].mounting.proposedReach,45);assert.equal(a.assignments[1].mounting.proposedReach,7);assert.equal(a.project.tools[0].fluteLength,undefined)});
+test('T H D follow station',()=>{const a=run(make(),[request({family:'mill',diameter:40,operationType:'roughing'})]);assert.deepEqual(a.assignments[0].addresses,{T:1,H:1,D:1});assert.equal(run(make(),[request()]).assignments[0].addresses.D,null)});
+test('unsupported family not silently converted',()=>{const a=run(make(),[request({family:'tap'})]);assert.equal(a.project.tools.length,0);assert.equal(a.pending.length,1)});
+test('unknown depth and collision remain unverified',()=>{const a=run(make(),[request()]);assert.equal(a.assignments[0].mounting.proposedReach,null);assert.equal(a.assignments[0].collisionStatus,'not-checked');assert.equal(a.assignments[0].readyForISO,false)});
+test('invalid requests rejected',()=>{for(const bad of [{diameter:0},{diameter:NaN},{depth:-1},{clearanceMargin:0}])assert.throws(()=>run(make(),[request(bad)]))});
+test('different tool geometries remain separate',()=>{const a=run(make(),[request({fluteLength:10}),request({fluteLength:20})]);assert.equal(a.project.tools.length,2)});
+test('drill uses existing station range',()=>assert.equal(run(make(),[request({family:'drill',diameter:4})]).project.tools[0].station,11));
+test('station exhaustion reported without overwriting',()=>{const p=make();for(let i=11;i<=20;i++)p.tools.push({id:'d'+i,kind:'drill',diameter:i,station:i,parameters:{rpm:1000}});const a=run(p,[request({family:'drill',diameter:4})]);assert.equal(a.pending.length,1);assert.equal(a.project.tools.length,10)});
+test('existing manual parameters preserved by adapter',()=>{const a=run(make(),[request()]);a.project.tools[0].parameters.rpm=1234;assert.equal(run(a.project,[request()]).project.tools[0].parameters.rpm,1234)});
