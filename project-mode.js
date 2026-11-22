@@ -1,8 +1,10 @@
+import { mountOperationPlanner } from './project-operation-linker.js';
 export function stepRotation(yaw,pitch){const c=Math.cos(yaw),s=Math.sin(yaw),a=Math.cos(pitch),b=Math.sin(pitch);return new Float32Array([c,a*s,b*s,-s,a*c,b*c,0,-b,a]);}
 export function mountProjectMode({mode,section,host,close},viewerFactory=mountStepViewer){
  if(section.dataset.projectModeReady)return;section.dataset.projectModeReady='true';
  if(![...mode.options].some(o=>o.value==='project')){const option=document.createElement('option');option.value='project';option.textContent='Lavorazione da progetto';mode.append(option);}
  host.dataset.projectNavigation='true';const style=document.createElement('style');style.textContent='body[data-project-mode="true"] main>:not([data-project-navigation]):not(#projectAnalysisPanel){display:none!important}#projectAnalysisPanel textarea{min-height:100px}#projectAnalysisPanel .step-view{margin-top:24px;padding-top:18px;border-top:1px solid #50778c}#projectAnalysisPanel canvas{display:block;width:100%;height:clamp(300px,55vh,650px);background:#031627;touch-action:none;border:1px solid #7194aa;border-radius:12px}';document.head.append(style);
+ mountOperationPlanner(section);
  let previous=['straight','arc','stock'].includes(mode.value)?mode.value:'stock',viewer=null;
  function sync(){const active=mode.value==='project';section.hidden=!active;if(active){document.body.dataset.projectMode='true';if(!viewer)viewer=viewerFactory(section);}else{delete document.body.dataset.projectMode;if(['straight','arc','stock'].includes(mode.value))previous=mode.value;}viewer?.setActive(active);}
  mode.addEventListener('change',sync);close.textContent='Torna alla modalità precedente';close.onclick=()=>{mode.value=previous;mode.dispatchEvent(new Event('change',{bubbles:true}));};sync();
