@@ -1,1 +1,5 @@
-FULL_UPDATED_TEST_CONTENT_WITH_CORRECTED_REGEX
+import test from 'node:test';import assert from 'node:assert/strict';import {createPhasePlayback} from '../lib/project-phase-playback.mjs';
+const editor=createPhasePlayback;
+test('pulsante: istanza editor pronta per la fase',()=>{assert.equal(typeof editor.build,'function');const ops=[{line:3,x:0,y:0,z:5,rapid:true,tool:1},{line:4,x:30,y:0,z:5,rapid:true,tool:1},{line:5,x:30,y:0,z:-2,feed:200,tool:1}],e=editor.build(ops);assert.equal(e.segments.length,2)});
+test('pulsante: avanzamento reale e ripresa',()=>{const ops=[{line:3,x:0,y:0,z:0,rapid:true,tool:1},{line:4,x:100,y:0,z:0,rapid:true,tool:1},{line:5,x:100,y:0,z:0,feed:100,tool:1}];const first=editor.advance(ops,{index:0,progress:0},.3);assert.equal(first.index,0);assert.equal(first.progress,.5);const second=editor.advance(ops,{index:0,progress:.5},.3000001);assert.equal(second.index,0);assert.equal(second.progress,1)});
+test('pulsante: ISO non lineare rifiutato',()=>{assert.throws(()=>editor.build([{line:1,x:0,y:0,z:0},{line:2,x:1}]),/Y non valida/)});
