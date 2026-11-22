@@ -1,0 +1,31 @@
+import {readFile,writeFile,copyFile} from 'node:fs/promises';
+import {Script,createContext} from 'node:vm';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'Integrazione asportazione cambiata: '+a.slice(0,100));return s.replace(a,b);};
+await copyFile('stock-contour-removal.js','dist/stock-contour-removal.js');
+let html=await readFile('dist/index.html','utf8');html=once(html,'<script src="stock-sim.js"></script>','<script src="stock-contour-removal.js"></script><script src="stock-sim.js"></script>');await writeFile('dist/index.html',html);
+let s=await readFile('dist/stock-sim.js','utf8');
+s=once(s,'op.nominalComp||','(op.nominalComp&&!op.nominalCompensated)||');
+s=once(s,'if(!ops.length)throw Error(\'Nessun movimento ISO\');',"StockContourRemoval.compensate(ops,project,text);if(!ops.length)throw Error('Nessun movimento ISO');");
+s=once(s,'Math.max(grid.z0,op.from.z+(op.to.z-op.from.z)*t),r);','op.from.z+(op.to.z-op.from.z)*t,r,op);');
+let a=s.indexOf(' function removeAt('),b=s.indexOf(' function projection(',a);assert(a>=0&&b>a);s=s.slice(0,a)+String.raw` function removeAt(x,y,z,r,op){if(!grid)return;const station=Number(/T(\d+)/.exec(op?.toolName||'')?.[1]),tool=project.tools.find(t=>t.station===station);StockContourRemoval.removeDisk(grid,x,y,z,r,tool);}
+`+s.slice(b);
+a=s.indexOf('const {x0,y0,z0,x1,y1,z1,cell,nx,ny,h,voidMask}=grid;');assert(a>=0);a+='const {x0,y0,z0,x1,y1,z1,cell,nx,ny,h,voidMask}=grid;'.length;b=s.indexOf('  ctx.beginPath();[[x0,y0]',a);assert(b>a);s=s.slice(0,a)+'\n  StockContourRemoval.drawStock({grid,quad,top,yaw});\n'+s.slice(b);
+s=once(s,'follow=false,yaw=','follow=false,panMode=false,yaw=');
+s=once(s,'<button type="button" data-do="follow">','<button type="button" data-do="pan" aria-pressed="false">Sposta vista</button><button type="button" data-do="follow">');
+s=once(s,"if(a==='follow'){","if(a==='pan'){panMode=!panMode;follow=false;e.target.setAttribute('aria-pressed',String(panMode));}if(a==='follow'){");
+s=once(s,'else if(top||e.shiftKey)','else if(panMode||top||e.shiftKey||(e.buttons&2))');
+s=once(s,'if(before>0)zoom=',"panX+=(e.clientX-old.x)/2;panY+=(e.clientY-old.y)/2;if(before>0)zoom=");
+s=once(s,"const pointers=new Map();","canvas.addEventListener('contextmenu',e=>e.preventDefault());const pointers=new Map();");
+s=once(s,"warn.textContent='Anteprima 2.5D nominale; utensili illustrativi Dritto/Arco. Non verifica collisioni o macro reali. Asportazione sospesa sui tratti G41/G42, non compensati dal simulatore. Macro non supportate segnalate, non saltate.';","warn.textContent='Asportazione 2.5D approssimata alla griglia. Contornatura G41/G42: offset geometrico nominale dal raggio utensile del progetto, non emulazione del correttore CNC. Supportati contorni esterni di blocchi, piastre e cilindri; sugli altri tratti compensati asportazione sospesa. Non verifica collisioni o sicurezza macchina.'+(ops.some(o=>o.removalUnsupported)?' ATTENZIONE: presenti tratti con asportazione non simulata.':'');");
+await writeFile('dist/stock-sim.js',s);
+for(const file of ['dist/stock-sim.js','dist/stock-contour-removal.js']){const r=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});assert.equal(r.status,0,file+'\n'+r.stderr);}
+const context=createContext({});new Script(await readFile('dist/stock-contour-removal.js','utf8')).runInContext(context);const model=context.StockContourRemoval;
+const points=[[-5,10],[-3,10],[0,10],[10,10],[10,0],[0,0],[0,10],[0,13],[0,15]];
+const ops=points.slice(1).map((p,i)=>({from:{x:points[i][0],y:points[i][1],z:-2},to:{x:p[0],y:p[1],z:-2},line:2,type:'feed',toolName:'T2 · FRESA',raw:i===0?'G1 G41 D2':i===points.length-2?'G1 G40':'G1',nominalComp:true}));
+const project={geometry:{finished:{type:'box'}},tools:[{station:2,kind:'mill',diameter:2}]};model.compensate(ops,project,'(CONTORNATURA DI FINITURA)\nG1');assert(ops.every(o=>o.nominalCompensated));assert.equal(ops[2].to.x,11);assert.equal(ops[2].to.y,11);assert.equal(ops[0].from.x,-5);assert.equal(ops.at(-1).to.y,15);
+const grid={x0:0,y0:0,z0:-5,cell:1,nx:5,ny:5,h:new Float32Array(25),voidMask:new Uint8Array(25)};model.removeDisk(grid,2.5,2.5,-3,1,{kind:'mill'});assert.equal(grid.h[12],-3);assert.equal(grid.h[0],0);model.removeDisk(grid,2.5,2.5,-8,1,{kind:'mill'});assert.equal(grid.h[12],-5);
+const one={x0:0,y0:0,z0:-5,cell:1,nx:1,ny:1,h:new Float32Array([-2]),voidMask:new Uint8Array(1)};let faces=0;model.drawStock({grid:one,quad:()=>faces++,top:false,yaw:0});assert.equal(faces,3);one.h[0]=-5;faces=0;model.drawStock({grid:one,quad:()=>faces++,top:false,yaw:0});assert.equal(faces,0);
+const unsupported=structuredClone(ops);for(const o of unsupported){o.from=o.programmedFrom;o.to=o.programmedTo;delete o.nominalCompensated;}model.compensate(unsupported,{...project,geometry:{finished:{type:'custom'}}},'(CONTORNATURA DI FINITURA)\nG1');assert(unsupported.every(o=>o.removalUnsupported&&!o.nominalCompensated));
+console.log('Test modello: offset nominale contorno, rimozione a profondità e pareti aggiornate verificati in build. Collaudo browser ancora necessario.');

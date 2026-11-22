@@ -1,10 +1,23 @@
-import {readFile,writeFile,copyFile} from 'node:fs/promises';
+import {readFile,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 let ui=await readFile('dist/stock-ui.js','utf8');
 for(const anchor of ['function renderOps()','function renderTools()','mountComplete({'])assert(ui.includes(anchor),'Integrazione caselle mancante: '+anchor);
 assert(!ui.includes('mountStockCards'),'Caselle già integrate');
-await copyFile('stock-cards.mjs','dist/stock-cards.mjs');
+let cards=await readFile('stock-cards.mjs','utf8');
+const anchor='summary.append(text,grip);card.append(summary);box.before(card);card.append(box);';
+assert.equal(cards.split(anchor).length,2,'Intestazione operazione cambiata');
+cards=cards.replace(anchor,`const controls=document.createElement('span'),deleteButton=document.createElement('button');
+controls.style.cssText='display:inline-flex;align-items:center;gap:6px;flex:0 0 auto';
+deleteButton.type='button';deleteButton.className='stock-delete';deleteButton.textContent='×';deleteButton.title='Elimina lavorazione';deleteButton.setAttribute('aria-label','Elimina lavorazione');
+deleteButton.style.cssText='color:#ff5555;border:1px solid #e5484d;background:#411e29;min-width:40px;min-height:40px;padding:4px 10px;font-size:24px;line-height:1;flex:0 0 auto';
+deleteButton.addEventListener('pointerdown',e=>e.stopPropagation());
+deleteButton.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();remove.click();});
+controls.append(deleteButton,grip);summary.append(text,controls);card.append(summary);box.before(card);card.append(box);`);
+const question="confirm('Eliminare questa lavorazione?')";
+assert.equal(cards.split(question).length,2,'Conferma eliminazione cambiata');
+cards=cards.replace(question,"confirm('Sei sicuro di voler eliminare questa lavorazione?')");
+await writeFile('dist/stock-cards.mjs',cards);
 ui="import {mountStockCards} from './stock-cards.mjs';\n"+ui;
 ui+=`
 const stockCards=mountStockCards({form,getProject:()=>project,changed:()=>{invalidate();renderOps();renderTools();}});

@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {adaptiveLengths,buildAdaptivePlan} from '../lib/project-adaptive-tools.mjs';
+import {replaceAssignmentOutput,readAdaptiveLibrary,saveAdaptiveLibrary} from '../project-tool-assignment.js';
+test('raggiungimento include ingresso ribassato e margine 5',()=>{assert.equal(adaptiveLengths({depth:20.5,entryOffset:2,thickness:76.5}).projection,27.5)});
+test('passante dimensionato sull ingombro completo',()=>{assert.equal(adaptiveLengths({depth:44.5,entryOffset:32,thickness:76.5,through:true}).projection,81.5)});
+test('profondita ignota usa inviluppo ma non viene dichiarata nota',()=>{const r=adaptiveLengths({depth:null,thickness:76.5});assert.equal(r.projection,81.5);assert.equal(r.basis,'envelope-assumption');assert.equal(r.collisionStatus,'not-checked')});
+test('lunghezze invalide rifiutate',()=>{assert.throws(()=>adaptiveLengths({depth:-1,thickness:80}));assert.throws(()=>adaptiveLengths({depth:10,entryOffset:-2,thickness:80}))});
+test('cento ricalcoli sostituiscono, non accodano righe',()=>{const node={rows:[],replaceChildren(...n){this.rows=n}};for(let i=0;i<100;i++)replaceAssignmentOutput(node,['A','B','C'],r=>({textContent:r}));assert.equal(node.rows.length,3)});
+test('libreria riutilizzabile senza stazioni fisse e senza doppioni',()=>{const data=new Map(),s={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)},t={kind:'mill',diameter:6,pitch:0,fluteLength:7,projection:10,station:2};let r=readAdaptiveLibrary(s);assert.equal(saveAdaptiveLibrary(s,r,[t]),1);r=readAdaptiveLibrary(s);assert.equal(r.records[0].station,undefined);assert.equal(saveAdaptiveLibrary(s,r,[t,t]),1)});
+test('migrazione libreria precedente deduplica senza alterare originale',()=>{const original=JSON.stringify({version:1,records:[{kind:'mill',diameter:6,fluteLength:7},{kind:'mill',diameter:6,fluteLength:12}]}),data=new Map([['officina-project-tool-library-v1',original]]),s={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)},r=readAdaptiveLibrary(s);assert.equal(r.records.length,1);assert.equal(r.records[0].fluteLength,12);saveAdaptiveLibrary(s,r,[]);assert.equal(s.getItem('officina-project-tool-library-v1'),original)});
+test('libreria corrotta o cambiata non sovrascritta',()=>{assert.throws(()=>readAdaptiveLibrary({getItem:()=>'{bad'}));const s={getItem:()=>null,setItem(){throw Error('non deve scrivere')}};assert.throws(()=>saveAdaptiveLibrary(s,{raw:'changed',records:[]},[]))});
+test('nessun adattatore non significa approvazione macchina',()=>{const p=buildAdaptivePlan({part:{code:'other'}});assert.equal(p.requests.length,0);assert.equal(p.readyForISO,false);assert.equal(p.pending.length,1)});

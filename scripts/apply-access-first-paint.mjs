@@ -1,0 +1,22 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+export function prepareFirstPaint(source){let html=source;const once=(a,b)=>{assert.equal(html.split(a).length,2,'Primo frame: riferimento non univoco '+a);html=html.replace(a,b);};
+assert(html.includes('<html lang="it" class="officina-locked">'),'Blocco iniziale mancante');
+once('<section id="officinaGate"','<section id="officinaGate" data-access-pending');
+once('<form id="officinaLogin">','<form id="officinaLogin" hidden>');
+once('<div id="officinaSetup">','<div id="officinaSetup" hidden>');
+for(const id of ['officinaBackup','officinaRestore'])once('<button id="'+id+'"','<button id="'+id+'" hidden');
+once('Password personale (almeno 12 caratteri al primo accesso)','Password personale');
+once('<p>Password richiesta a ogni apertura, ricaricamento e nuova scheda.</p>','');
+once('<h1>Officina Smart CNC</h1>','<h1>Officina <span class="smart-cnc-orange">Smart CNC</span></h1><p id="officinaAccessLoading" role="status">Preparazione accesso…</p>');
+const critical='<style id="officinaFirstPaint">html.officina-locked body>:not(#officinaGate){display:none!important}#officinaGate[hidden],#officinaGate [hidden]{display:none!important}#officinaGate[data-access-pending]>:not(h1):not(#officinaAccessLoading):not(noscript){display:none!important}#officinaGate .smart-cnc-orange{color:#ff9d3b}#officinaAccessLoading{color:#cceefa;font:14px system-ui}</style>';
+once('</head>',critical+'</head>');return html;}
+const fixture='<html lang="it" class="officina-locked"><head></head><body><section id="officinaGate"><h1>Officina Smart CNC</h1><p>Password richiesta a ogni apertura, ricaricamento e nuova scheda.</p><form id="officinaLogin"><div id="officinaSetup">Vecchio modulo</div><label>Password personale (almeno 12 caratteri al primo accesso)<input id="officinaPassword" required maxlength="1024"></label></form><button id="officinaBackup">Backup</button><button id="officinaRestore">Ripristina</button><noscript>Abilita JavaScript</noscript></section><main>Applicazione</main></body></html>',tested=prepareFirstPaint(fixture);
+for(const id of ['officinaLogin','officinaSetup','officinaBackup','officinaRestore'])assert(new RegExp('id="'+id+'" hidden').test(tested));assert(tested.indexOf('officinaFirstPaint')<tested.indexOf('<body>'));assert(tested.includes('data-access-pending'));assert(tested.includes('<noscript>Abilita JavaScript</noscript>'));assert(tested.includes('<input id="officinaPassword" required maxlength="1024">'));assert(!tested.includes('(almeno 12 caratteri al primo accesso)'));assert.throws(()=>prepareFirstPaint('<html></html>'));
+const htmlPath='dist/index.html',accessPath='dist/local-access.js',html=prepareFirstPaint(await readFile(htmlPath,'utf8')),original=await readFile(accessPath,'utf8');
+assert(original.includes('form.hidden=true'));assert(original.includes('admin.onclick=()=>{form.hidden=false;'));assert(original.includes('password.minLength=12'));
+const ready="\n// First paint: reveal only after the access interface and its presentation are initialized.\n{document.getElementById('officinaAccessLoading')?.remove();document.getElementById('officinaGate')?.removeAttribute('data-access-pending');}\n",next=original+ready;assert.equal(next.slice(0,original.length),original);
+const checked=spawnSync(process.execPath,['--input-type=module','--check'],{input:next,encoding:'utf8'});assert.equal(checked.status,0,checked.stderr);
+await writeFile(htmlPath,html);await writeFile(accessPath,next);
+console.log('PASS primo frame: modulo, configurazione e recupero nascosti in HTML prima di JavaScript; applicazione bloccata; titolo arancione e stato di preparazione; apertura amministratore e minimo password preservati. Verifica del primo paint in browser ancora necessaria.');

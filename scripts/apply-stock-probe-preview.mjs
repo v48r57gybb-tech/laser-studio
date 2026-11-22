@@ -1,0 +1,39 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'Anteprima sonda: integrazione cambiata '+a.slice(0,100));return s.replace(a,b);};
+function probePreviewComments(iso){return iso.split('\n').map((line,i)=>'('+(i===0?'SOLO ANTEPRIMA NON ESEGUIBILE - SONDA NON VERIFICATA: ':'')+line.replace(/[()]/g,' ')+')').join('\n');}
+function probeNominalSimulation(iso){return iso.split('\n').map(line=>{if(/^G65 P9810(?: |$)/.test(line))return line.replace(/^G65 P9810/,'G1');if(/^G65 P9811(?: |$)/.test(line))return line.replace(/^G65 P9811/,'G1').replace(/\s+[QS][+-]?\d+(?:\.\d*)?/g,'')+' F100';if(/^G65 /.test(line))return '(TASTATURA NOMINALE: CICLO NON ESEGUITO)';return line;}).join('\n');}
+let s=await readFile('dist/lib/stock-program.mjs','utf8');
+s=once(s,'export function planProbe(input,operationId){','export function planProbe(input,operationId,{allowUnverifiedPreview=false}={}){');
+s=once(s,"for(const k of ['macroProfileConfirmed','calibrationConfirmed','provisionalOriginConfirmed','ballBottomReferenceConfirmed'])if(p[k]!==true)fail('conferma sonda richiesta: '+k);","const missingProbeChecks=['macroProfileConfirmed','calibrationConfirmed','provisionalOriginConfirmed','ballBottomReferenceConfirmed'].filter(k=>p[k]!==true),probePreviewOnly=missingProbeChecks.length>0;if(probePreviewOnly&&!allowUnverifiedPreview)fail('conferma sonda richiesta: '+missingProbeChecks[0]);");
+s=once(s,"id:op.id,type:'probe',tool:snapshot","id:op.id,type:'probe',probePreviewOnly,missingProbeChecks,tool:snapshot");
+s=once(s,'plans.push(planProbe(project,probes[0].id))','plans.push(planProbe(project,probes[0].id,{allowUnverifiedPreview:options.previewProbe===true}))');
+const oldReturn=String.raw`return {iso:lines.join('\n'),lineMap,candidate:true,readyForMachine:false};`;
+const newReturn=String.raw`const rawISO=lines.join('\n'),previewOnly=plans.some(p=>p.probePreviewOnly);return {iso:previewOnly?probePreviewComments(rawISO):rawISO,simulationISO:previewOnly?probeNominalSimulation(rawISO):null,previewOnly,lineMap,candidate:true,readyForMachine:false};`;
+s=once(s,oldReturn,newReturn);
+s+='\n'+probePreviewComments.toString()+'\n'+probeNominalSimulation.toString()+'\n';
+await writeFile('dist/lib/stock-program.mjs',s);
+let ui=await readFile('dist/stock-ui.js','utf8');
+ui=once(ui,'const result=generateProgram(p);','const result=generateProgram(p,{previewProbe:true});');
+ui=once(ui,"$('stOutput').value=result.iso;","$('stOutput').value=result.iso;window.__stockPreviewOnly=result.previewOnly===true;window.__stockSimulationISO=result.simulationISO;");
+ui=once(ui,"$('stCopy').disabled=false;$('stDownload').disabled=false;","$('stCopy').disabled=result.previewOnly===true;$('stDownload').disabled=result.previewOnly===true;");
+ui=once(ui,"message('ISO candidato generato. Verifica geometrica software, non collaudo macchina.');","message(result.previewOnly?'SOLO ANTEPRIMA: tastatura nominale automatica. Conferme macchina non dichiarate; copia e download ISO disabilitati.':'ISO candidato generato. Verifica geometrica software, non collaudo macchina.');");
+ui=once(ui,'delete window.__stockProject;','delete window.__stockProject;delete window.__stockPreviewOnly;delete window.__stockSimulationISO;');
+ui=once(ui,"$('stDownload').onclick=()=>{","$('stDownload').onclick=()=>{if(window.__stockPreviewOnly)return;");
+ui=once(ui,"$('stCopy').onclick=()=>navigator.clipboard.writeText","$('stCopy').onclick=()=>!window.__stockPreviewOnly&&navigator.clipboard.writeText");
+await writeFile('dist/stock-ui.js',ui);
+let sim=await readFile('dist/stock-sim.js','utf8');
+sim=once(sim,"const text=$('stOutput').value;project=window.__stockProject;","const text=window.__stockPreviewOnly?window.__stockSimulationISO:$('stOutput').value;project=window.__stockProject;");
+sim=once(sim,'snapshot=text;',"snapshot=$('stOutput').value;");await writeFile('dist/stock-sim.js',sim);
+let feedback=await readFile('dist/stock-feedback.mjs','utf8');
+feedback=once(feedback,String.raw`const rows=engine.frames(iso),lines=iso.split(/\r?\n/),labels=`,String.raw`const presentation=window.__stockPreviewOnly?window.__stockSimulationISO:iso;const rows=engine.frames(presentation),lines=presentation.split(/\r?\n/),labels=`);
+await writeFile('dist/stock-feedback.mjs',feedback);
+for(const path of ['dist/lib/stock-program.mjs','dist/stock-ui.js','dist/stock-sim.js','dist/stock-feedback.mjs']){const r=spawnSync(process.execPath,['--check',path],{encoding:'utf8'});assert.equal(r.status,0,path+'\n'+r.stderr);}
+const {initialProject}=await import('../dist/lib/stock-ui-model.mjs');const {generateProgram}=await import('../dist/lib/stock-program.mjs');
+const p=initialProject(),probe=p.tools.find(t=>t.kind==='probe');p.operations=[{id:'probe',type:'probe',enabled:true,toolId:probe.id,parameters:{axes:['Z'],clearance:5,expectedError:.5,overtravel:2,positionFeed:1000,macroProfileConfirmed:false,calibrationConfirmed:false,provisionalOriginConfirmed:false,ballBottomReferenceConfirmed:false}}];
+const original=JSON.stringify(p);assert.throws(()=>generateProgram(p),/conferma sonda richiesta/);
+const result=generateProgram(p,{previewProbe:true});assert.equal(result.previewOnly,true);assert.equal(result.readyForMachine,false);assert.equal(JSON.stringify(p),original);assert(result.iso.split('\n').every(l=>l.startsWith('(')&&l.endsWith(')')));assert(!/^G65 /m.test(result.simulationISO));assert(result.simulationISO.includes('G1 Z3. F100'));assert.equal(result.iso.split('\n').length,result.lineMap.length);assert.equal(result.plans[0].missingProbeChecks.length,4);assert.equal(result.project.operations[0].parameters.calibrationConfirmed,false);
+for(const key of ['macroProfileConfirmed','calibrationConfirmed','provisionalOriginConfirmed','ballBottomReferenceConfirmed'])p.operations[0].parameters[key]=true;const confirmed=generateProgram(p,{previewProbe:true});assert.equal(confirmed.previewOnly,false);assert(confirmed.iso.includes('G65 P9811'));
+const sample='%\nG65 P9811 Z3. Q2. S3\nG65 P9814 D104. Z-5. Q2. S3\nM30';assert(!/^G65 /m.test(probeNominalSimulation(sample)));assert.equal(probeNominalSimulation(sample).split('\n').length,4);assert(probePreviewComments(sample).split('\n').every(l=>l.startsWith('(')&&l.endsWith(')')));
+console.log('Anteprima sonda automatica: escape, righe ISO, conferme conservate e macro non eseguite verificati in build. Prova browser e profilo macchina restano da verificare.');

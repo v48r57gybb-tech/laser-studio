@@ -1,0 +1,20 @@
+name: Project planner bridge
+on:
+  push:
+    branches: [feature/nuove-regole-da-produzione]
+    paths: ['lib/project-*', 'lib/stock-*', 'project-phase-program.js', 'tests/project-*', '.github/workflows/project-planner-bridge.yml']
+  pull_request:
+    paths: ['lib/project-*', 'lib/stock-*', 'project-phase-program.js', 'tests/project-*', '.github/workflows/project-planner-bridge.yml']
+permissions:
+  contents: read
+jobs:
+  native-planners:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/project-planner-bridge.test.mjs tests/project-stock-planners.integration.test.mjs tests/project-phase-program.test.mjs tests/project-smart-ux.test.mjs

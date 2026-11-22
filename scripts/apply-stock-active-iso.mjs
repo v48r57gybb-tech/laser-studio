@@ -1,0 +1,25 @@
+import {readFile,writeFile,copyFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'ISO attivo: integrazione cambiata '+a.slice(0,110));return s.replace(a,b);};
+await copyFile('lib/stock-iso-output.mjs','dist/lib/stock-iso-output.mjs');
+let s=await readFile('dist/lib/stock-program.mjs','utf8');
+s="import {finalizeStockISO} from './stock-iso-output.mjs';\n"+s;
+const oldReturn=String.raw`const rawISO=lines.join('\n'),previewOnly=plans.some(p=>p.probePreviewOnly||p.tool?.tool?.geometryAssumed);return {iso:previewOnly?probePreviewComments(rawISO):rawISO,simulationISO:previewOnly?probeNominalSimulation(rawISO):null,previewOnly,lineMap,candidate:true,readyForMachine:false};`;
+s=once(s,oldReturn,'return finalizeStockISO(lines,plans,lineMap);');
+s=once(s,'const t=op.tool?.tool,p=op.tool?.parameters;',"if(op.type==='probe'&&op.probePreviewOnly){add('(TASTATURA AUTOMATICA NON EMESSA: CONFIGURAZIONE SONDA NON VERIFICATA)',op);add('M5',op);add('M9',op);add('M00 (IMPOSTARE E VERIFICARE G56 UTENSILI E CORRETTORI PRIMA DEL TAGLIO)',op);continue;}const t=op.tool?.tool,p=op.tool?.parameters;");
+s=once(s,"add('G56');","add('G56');if(plans.some(p=>p.tool?.tool?.geometryAssumed)){add('(DIMENSIONI UTENSILI DI MODELLO: NON SONO MISURE O CORRETTORI MACCHINA)');if(!plans.some(p=>p.type==='probe'&&p.probePreviewOnly))add('M00 (VERIFICARE UTENSILI REALI CORRETTORI ORIGINE E ATTREZZAGGIO)');}");
+await writeFile('dist/lib/stock-program.mjs',s);
+let ui=await readFile('dist/stock-ui.js','utf8');
+ui=once(ui,"message(result.previewOnly?'SOLO ANTEPRIMA: geometria utensili H+5 mm e/o tastatura nominali, non verificati sulla macchina. Copia e download ISO disabilitati.':'ISO candidato generato. Verifica geometrica software, non collaudo macchina.');","message(result.requiresManualOrigin?'ISO candidato esportabile: tastatura automatica non emessa. M00 prima del taglio per impostare e verificare G56, utensili e correttori sulla macchina.':result.assumedToolGeometry?'ISO candidato esportabile. Lunghezza modello utensile = altezza pezzo + 5 mm; non è un correttore H. M00 prima del taglio per verificare i dati reali.':'ISO candidato generato. Verifica geometrica software, non collaudo macchina.');");
+ui=once(ui,'if(t.parameterStatus)info(box,t.parameterStatus);',"if(t.geometryAssumed)info(box,'Lunghezza modello utensile: altezza pezzo + 5 mm. Dimensione nominale, non misura reale né valore del correttore H. Verificare utensile e attrezzaggio prima di eseguire il programma.');if(t.parameterStatus)info(box,t.parameterStatus);");
+await writeFile('dist/stock-ui.js',ui);
+for(const path of ['dist/lib/stock-program.mjs','dist/lib/stock-iso-output.mjs','dist/stock-ui.js']){const r=spawnSync(process.execPath,['--check',path],{encoding:'utf8'});assert.equal(r.status,0,path+'\n'+r.stderr);}
+const {initialProject}=await import('../dist/lib/stock-ui-model.mjs');const {generateProgram}=await import('../dist/lib/stock-program.mjs');const {generateGroupedProgram}=await import('../dist/lib/stock-iso-groups.mjs');
+const p=initialProject(),face=p.tools.find(t=>t.kind==='face'),probe=p.tools.find(t=>t.kind==='probe');
+p.operations=[{id:'probe',type:'probe',enabled:true,toolId:probe.id,parameters:{axes:['Z'],clearance:5,expectedError:.5,overtravel:2,positionFeed:1000,macroProfileConfirmed:false,calibrationConfirmed:false,provisionalOriginConfirmed:false,ballBottomReferenceConfirmed:false}},{id:'face',type:'facing',enabled:true,toolId:face.id,parameters:{stepOver:20}}];
+const original=JSON.stringify(p);const result=generateGroupedProgram(p,{previewProbe:true});assert.equal(JSON.stringify(p),original);assert.equal(result.previewOnly,false);assert.equal(result.requiresManualOrigin,true);assert.equal(result.assumedToolGeometry,true);assert.equal(result.readyForMachine,false);
+assert(result.iso.startsWith('%\nO0001 '));assert(result.iso.includes('\n(SPIANATURA)\n'));assert(result.iso.includes('\nT1 M6\n'));assert(result.iso.includes('\nS1000 M3\n'));assert(result.iso.includes('\nM30\n'));assert(!/^G65 /m.test(result.iso));assert(result.iso.indexOf('M00 ')<result.iso.indexOf('T1 M6'));assert(result.iso.split('\n').some(l=>l.startsWith('G1 ')));assert.equal(result.iso.split('\n').length,result.lineMap.length);assert.equal(result.project.operations[0].parameters.calibrationConfirmed,false);
+assert.throws(()=>generateProgram(p),/conferma sonda richiesta/);
+for(const k of ['macroProfileConfirmed','calibrationConfirmed','provisionalOriginConfirmed','ballBottomReferenceConfirmed'])p.operations[0].parameters[k]=true;const confirmed=generateProgram(p);assert.equal(confirmed.requiresManualOrigin,false);assert(/^G65 P9811 /m.test(confirmed.iso));assert.equal(confirmed.readyForMachine,false);
+console.log('ISO finale verificato in build: istruzioni attive, commenti descrittivi, mappa righe coerente, M00 per assetto manuale e nessuna macro sonda non verificata. Collaudo browser e CNC ancora necessari.');
