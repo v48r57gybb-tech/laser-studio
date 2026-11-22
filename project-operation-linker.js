@@ -28,7 +28,20 @@ export function createOperationPlanner(analysis){
 }
 function element(tag,className,content){const node=document.createElement(tag);if(className)node.className=className;if(content!==undefined)node.textContent=content;return node}
 export function mountOperationPlanner(section){
- if(!section||section.dataset.operationPlannerReady)return null;
+ if(
+  typeof document==='undefined'||
+  typeof document.createElement!=='function'
+ )return null;
+
+ const domProbe=document.createElement('div');
+
+ if(
+  typeof domProbe?.append!=='function'||
+  typeof section?.prepend!=='function'||
+  !section?.dataset
+ )return null;
+
+ if(section.dataset.operationPlannerReady)return null;
  section.dataset.operationPlannerReady='true';
  const panel=element('section','project-operations');panel.id='projectOperationsPanel';
  panel.append(element('h2','','Lavorazioni proposte dal JSON'));
