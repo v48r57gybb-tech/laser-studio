@@ -3,10 +3,18 @@ const positive=n=>typeof n==='number'&&Number.isFinite(n)&&n>0&&n<=1000000;
 export const toolSignature=t=>[t.kind,t.diameter,t.fluteLength??null,t.neckDiameter??null,t.neckLength??null,t.overallLength??null].join('|');
 export function diameterHint(family,source){
  const s=String(source??''),number=x=>Number(x.replace(',','.'));
- if(family==='face')return 50;
- if(family==='mill'){const m=/(?:finale|quindi)\s*(?:[Øø]|≤|<=)\s*(\d+(?:[.,]\d+)?)/i.exec(s);return m?number(m[1]):/interpolazione|fresa a disco|oppure/i.test(s)?null:40;}
+ if(family==='face'){const m=/(?:finale|quindi)\s*[Øø]\s*(?:≤|<=)?\s*(\d+(?:[.,]\d+)?)/i.exec(s);return m?number(m[1]):null;}
+ if(family==='mill'){const m=/(?:finale|quindi)\s*[Øø]\s*(?:≤|<=)?\s*(\d+(?:[.,]\d+)?)/i.exec(s);return m?number(m[1]):null;}
  if(family==='drill'){if(/preforo/i.test(s))return null;const values=[...s.matchAll(/[Øø]\s*(\d+(?:[.,]\d+)?)/g)].map(m=>number(m[1]));return new Set(values).size===1?values[0]:null;}
  return null;
+}
+export function ambiguousReason(family,source){
+ const s=String(source??'').toLowerCase();
+ if(family==='drill'&&/preforo/.test(s))return 'Preforo da definire: i diametri CAD minori non sono prefori.';
+ if(family==='mill'&&/raggio concavo|interpolazione|fresa a disco|contornare\/abbassare/.test(s))return 'Diametro fresa da definire: dipende da raggio concavo, accessi e strategia.';
+ if(family==='face'&&/fresa per riferimenti laterali ove autorizzato/.test(s))return 'Diametro fresa a spianare da definire: dipende da superfici e accessi.';
+ if(/oppure|alternativa|eventuale|solo dopo/.test(s))return 'Descrizione con alternative o condizioni: selezionare una sola configurazione.';
+ return 'Diametro da definire.';
 }
 export function depthHint(description){const m=/piano geometrico\s*[−-]?\s*(\d+(?:[.,]\d+)?)\s*(?:mm\s*)?sotto/i.exec(String(description??''));return m?Number(m[1].replace(',','.')):null;}
 export function readProjectToolLibrary(storage){
@@ -39,7 +47,10 @@ export function registerProjectToolAssignment({suggestFamilies,prepareAutomaticT
      const enabled=el('input');enabled.type='checkbox';enabled.checked=!recommendation.alternativesRequireReview||index===0;
      const label=el('label','Includi questa proposta ');label.append(enabled);d.append(label);
      function number(label,value){const l=el('label',label+' '),n=el('input');n.type='number';n.min='.01';n.max='1000000';n.step='any';n.value=value==null?'':String(value);l.append(n);d.append(l);return n}
-     const diameter=number('Diametro utensile mm (proposta modificabile)',diameterHint(f.family,recommendation.source));
+     const hint=diameterHint(f.family,recommendation.source);
+     const diameter=number('Diametro utensile mm (proposta modificabile)',hint);
+     const reason=el('p',hint===null?ambiguousReason(f.family,recommendation.source):'Diametro proposto dal testo: verificare accessi, raccordi e strategia.');
+     reason.className='project-ambiguity-reason';d.append(reason);
      const depth=number('Profondità locale lavorazione mm (vuota se da definire)',f.family==='face'&&id==='OP002'&&analysis.part?.code==='RIC0075'?2:depthHint(proposal.description));
      rows.push({id,family:f.family,diameter,depth,enabled});target.append(d);
     }
