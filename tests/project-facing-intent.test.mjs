@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {isExplicitFacingRequest} from '../lib/project-facing-intent.mjs';
+const request={operationId:'OP002',featureId:'F001'};
+const analysis=description=>({proposals:[{id:'OP002',description}]});
+test('recognizes the explicit feature operation line',()=>assert.equal(isExplicitFacingRequest(analysis('Caratteristiche e categoria di utensile:\n- F001: fresatura di spianatura e riferimenti con fresa a candela\n\nOP002: creare riferimenti'),request),true));
+test('does not classify references to facing in later prose',()=>assert.equal(isExplicitFacingRequest(analysis('Caratteristiche:\n- F001: fresatura di profilo\n\nDopo spianatura'),request),false));
+test('does not classify another feature',()=>assert.equal(isExplicitFacingRequest(analysis('- F002: spianatura'),request),false));
+test('does not classify negative or duplicate declarations',()=>{for(const text of ['- F001: non eseguire spianatura','- F001: spianatura\n- F001: fresatura di profilo'])assert.equal(isExplicitFacingRequest(analysis(text),request),false)});
+test('accepts wrapped analysis and CRLF',()=>assert.equal(isExplicitFacingRequest({analysis:analysis('Caratteristiche:\r\n- F001: Spianatura\r\n\r\nNote')},request),true));
+test('missing input is not facing',()=>assert.equal(isExplicitFacingRequest({},request),false));
